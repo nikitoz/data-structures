@@ -5,7 +5,7 @@
 //=========================================================================
 // Unit tests for avl tree implementation
 //=========================================================================
-class FF_AVLTree_test{
+class FF_AVLTree_test {
 public:
 	ff_amap<int, int> avl;
 	FF_AVLTree_test(){}
@@ -31,15 +31,10 @@ public:
 			b.right = (anode<int, int>*)r;
 			a.right = &b;
 
-			anode<int, int>** aa;
-			anode<int, int>* aaa = &a;
-			aa = &aaa;
-
-			avl.littleLeftRotate(aa);
+			anode<int, int>* aa = avl.littleLeftRotate(&a);
 
 			if (!(a.left == l && a.right == c && a.key == 0 && a.val == 0 
-				&& b.left == &a && b.right == r && b.key == 1 && b.val == 1
-				&& (&b == *aa)))
+				&& b.left == &a && b.right == r && b.key == 1 && b.val == 1) && (&b == aa))
 				return false;
 
 		} while(false);
@@ -56,11 +51,10 @@ public:
 			b.calcChildCount();b.calcBalance();
 			a.calcChildCount();a.calcBalance();
 			anode<int, int>* aa = &a;
-			avl.littleRightRotate(&aa);
+			avl.littleRightRotate(aa);
 
 			if (!(a.left == c && a.right == r && a.key == 0 && a.val == 0 
 				&& b.left == l && b.right == &a && b.key == 1 && b.val == 1
-				&& (&b == aa) 
 				&& a.childCount == (r->childCount + c->childCount + 2) 
 				&& b.childCount == (a.childCount + l->childCount + 2) 
 				&& (a.balance  == (c->childCount - r->childCount))
@@ -69,7 +63,7 @@ public:
 
 		} while (false);
 
-		do{
+		do {
 			anode<int, int>* a = new anode<int, int>(0,0);
 			anode<int, int>* b = new anode<int, int>(1,1);
 
@@ -81,19 +75,18 @@ public:
 			c->left = m;
 			c->right = n;
 
-			anode<int, int>* rr = a;
-			avl.bigLeftRotate(&rr);
+			anode<int, int>* rr = NULL;
+			rr = avl.bigLeftRotate(a);
 
-			if (!(
-				(rr->left == a) && (rr->right == b) && (rr->left->left == l) && (rr->left->right == m) && (rr->right->left == n) && (rr->right->right == r)
-				&& (rr == c)
-				)){
+			if (!((rr->left == a) && (rr->right == b) && (rr->left->left == l) && (rr->left->right == m) 
+				&& (rr->right->left == n) && (rr->right->right == r)
+				&& (rr == c))) {
 				return false;
 			}
 
 		} while(false);
 
-		do{
+		do {
 			anode<int, int>* a = new anode<int, int>(0,0);
 			anode<int, int>* b = new anode<int, int>(1,1);
 
@@ -105,13 +98,12 @@ public:
 			c->left = m;
 			c->right = n;
 
-			anode<int, int>* rr = a;
-			avl.bigRightRotate(&rr);
+			anode<int, int>* rr = NULL;
+			rr = avl.bigRightRotate(a);
 
-			if (!(
-				(rr->left == b) && (rr->right == a) && (rr->left->left == l) && (rr->left->right == m) && (rr->right->left == n) && (rr->right->right == r)
-				&& (rr == c)
-				)){
+			if (!((rr->left == b) && (rr->right == a) && (rr->left->left == l) && (rr->left->right == m) 
+				&& (rr->right->left == n) && (rr->right->right == r)
+				&& (rr == c))) {
 					return false;
 			}
 
@@ -132,23 +124,26 @@ public:
 		anode<int, int>* eee = new anode<int, int>(141,141);
 
 		anode<int, int>* root=NULL;
+		anode<int, int>** a_addr = &a;
+		ff_amap<int, int>::panode_t* paa[4000];int N = 0;
+		anode<int, int>** l_addr = avl.findLeftMostChild(a, paa, N) ;
 
-		if (avl.findLeftMostChild(a) != NULL && avl.findRightMostChild(a) != NULL){
+		if ((avl.findLeftMostChild(a, paa, N) != &a) || (avl.findRightMostChild(a, paa, N) != &a)) {
 			return false;
 		}
 
 		a->left = b;
 		a->right = c;
-		if (avl.findLeftMostChild(a) != &(a->left)){
+		if (avl.findLeftMostChild(a, paa, N) != &(a->left)) {
 			return false;
 		}
-		if (avl.findRightMostChild(a) != &(a->right)){
+		if (avl.findRightMostChild(a, paa, N) != &(a->right)) {
 			return false;
 		}
 
 		b->left = d;
 		b->right = e;
-		if (avl.findLeftMostChild(a) != &(b->left)){
+		if (avl.findLeftMostChild(a, paa, N) != &(b->left)) {
 			return false;
 		}
 		b->left = NULL;
@@ -156,7 +151,7 @@ public:
 
 		c->left = d;
 		c->right = e;
-		if (avl.findRightMostChild(a) != &(c->right)){
+		if (avl.findRightMostChild(a, paa, N) != &(c->right)) {
 			return false;
 		}
 		c->left = NULL;
@@ -164,7 +159,7 @@ public:
 		e->right = d;
 		d->right = eee;
 
-		if (avl.findRightMostChild(a) != &(d->right)){
+		if (avl.findRightMostChild(a, paa, N) != &(d->right)) {
 			return false;
 		}
 
@@ -187,9 +182,9 @@ public:
 		a->left = b;
 		a->right = c;
 		bool result = false;
-		stack< anode <int, int> ** > paa;
+		ff_amap<int, int>::panode_t* paa[4000];int N;
 		anode<int, int>** pa = &a->left;
-		if (pa != avl.findNodePtrPtr(&a,paa,9, result)){
+		if (pa != avl.findNodePtrPtr(&a,9, paa, N)) {
 			return false;
 		}
 
@@ -198,19 +193,19 @@ public:
 
 		pa = &a->right;
 
-		if (pa != avl.findNodePtrPtr(&a, paa, 13, result)){
+		if (pa != avl.findNodePtrPtr(&a, 13, paa, N)) {
 			return false;
 		}
 
 		c->right = e;
 		pa = &c->right;
-		if (pa != avl.findNodePtrPtr(&a, paa, 14, result)){
+		if (pa != avl.findNodePtrPtr(&a, 14, paa, N)) {
 			return false;
 		}
 
 		pa = &c->left;
 
-		if (pa != avl.findNodePtrPtr(&a, paa, 12, result) ){
+		if (pa != avl.findNodePtrPtr(&a, 12, paa, N) ) {
 			return false;
 		}
 
@@ -229,7 +224,7 @@ public:
 	// to create images with your AVL-tree (!!! Can be used only with integer keys !!!)
 	//=========================================================================
 	template < typename TTree, typename TRoot >
-	static void createDotFile(const TTree * const tree, const char* fileName){
+	static void createDotFile(const TTree * const tree, const char* fileName, const int key = -1) {
 		FILE*f=fopen(fileName, "wt");
 		if (f != NULL){
 			char temp[256] = {0};
@@ -237,6 +232,8 @@ public:
 			for(int i = 0; i < strlen(fileName); ++i) if(fileName[i] != '.') temp[j++] = fileName[i];
 			if (j == 0) temp[j] = 'G';
 			fprintf(f, "digraph %s{\n", temp);
+			if (key != -1)
+				fprintf(f, "%d->%d;\n", key, key);
 			TRoot* root = tree->m_root;
 			createRecord<TRoot>(root, f);
 			fprintf(f, "}");
@@ -245,12 +242,13 @@ public:
 	}
 private:
 	template <typename TRoot>
-	static void createRecord(const TRoot* const root, FILE*file){
+	static void createRecord(const TRoot* const root, FILE*file) {
 		if (root != NULL && file != NULL){
 			if (root->right != NULL) 
-				fprintf(file,"A%d->A%d;\n", root->key, root->right->key);
+				fprintf(file,"%d->%d;\n", root->key, root->right->key);
+
 			if (root->left != NULL)
-				fprintf(file,"A%d->A%d;\n", root->key, root->left->key);
+				fprintf(file,"%d->%d;\n", root->key, root->left->key);
 
 			if(root->right != NULL)
 				createRecord<TRoot>(root->right, file);

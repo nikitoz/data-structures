@@ -18,14 +18,43 @@
 #include <memory.h>
 #include <exception>
 
-
-using namespace std;
-namespace{
+namespace {
 	//=========================================================================
 	// Internal type for saving node data of the AVL-tree
 	//=========================================================================
 	template<typename TKey, typename TVal>
 	struct anode {
+		anode()
+			: balance(0)
+			, right(NULL)
+			, left(NULL)
+			, childCount(0) {}
+
+		anode(TKey _k, TVal _v) 
+			: balance(0)
+			, right(NULL)
+			, left(NULL)
+			, childCount(0)
+		{ key = _k; val = _v; }
+
+		anode(const anode<TKey, TVal>& a)
+		{ (*this) = a; }
+
+		const anode& operator=(const anode& _node) {
+			this->key	  = _node.key; 
+			this->val	  = _node.val; 
+			this->balance = _node.balance;
+			return _node;
+		}
+
+		void calcBalance() {
+			balance = ((left == NULL)? 0 : left->childCount+1) - ((right == NULL)? 0 : right->childCount+1);
+		}
+
+		void calcChildCount() {
+			childCount = ((left == NULL)? 0 : left->childCount + 1) + ((right == NULL)? 0 : right->childCount + 1);
+		}
+
 		TKey key;
 		TVal val;
 		int balance;
@@ -33,43 +62,27 @@ namespace{
 
 		anode<TKey, TVal> * left;
 		anode<TKey, TVal> * right;
-		anode():balance(0), right(NULL), left(NULL), childCount(0){}
-		anode(TKey _k, TVal _v):balance(0), right(NULL), left(NULL), childCount(0){key = _k; val = _v;}
-		anode(const anode<TKey, TVal>& a){(*this) = a;}
-
-		const anode& operator=(const anode& _node){
-			this->key = _node.key; this->val = _node.val; this->balance = _node.balance;
-			return _node;
-		}
-
-		void calcBalance(){
-			balance = ((left == NULL)? 0 : left->childCount+1) - ((right == NULL)? 0 : right->childCount+1);
-		}
-
-		void calcChildCount(){
-			childCount = ((left == NULL)? 0 : left->childCount+1) + ((right == NULL)? 0 : right->childCount+1);
-		}
 	};
 }
 //=========================================================================
-// Overloaded operators for anode type
-//=========================================================================
-template<typename TKey, typename TVal>
-bool operator<(const TKey& a1, const TKey& a2){if (a1 < a2) return true; else return false;}
-template<typename TKey, typename TVal>
-bool operator>(const TKey& a1, const TKey& a2){if (a1 > a2) return true; else return false;}
-
-//=========================================================================
 // Map implementation based on AVL Tree
 //=========================================================================
-template <typename TKey, typename TVal, typename TPred = less<TKey> >
+template <typename TKey, typename TVal, typename TPred = std::less<TKey> >
 class ff_amap {
+public :
+	typedef anode<TKey, TVal>  anode_t;
+	typedef anode<TKey, TVal>* panode_t;
+	typedef std::stack<panode_t*>   stack_panode_t;
+
 private:
-	anode<TKey, TVal> *m_root;
+	panode_t m_root;
 	TPred m_predicate;
 
+	enum {StackSize = 4096};
+
 public:
-	ff_amap(): m_root(NULL){}
+	ff_amap()
+		: m_root(NULL) {}
 
 	// Friend class for testing private member functions
 	friend class FF_AVLTree_test;
@@ -77,316 +90,322 @@ public:
 	friend class FF_AVL_GraphCreator;
 
 	//=========================================================================
-	void deleteNode(const TKey& key){
-		anode<TKey, TVal>** nodeToRemove = NULL;
-		stack< anode<TKey, TVal> ** > parents;
-		if (m_root->key == key){
-			nodeToRemove = &m_root; 
-		} else{
-			bool opResult(false);
-			nodeToRemove = findNodePtrPtr(&m_root, parents, key, opResult);
-		}
-		if (nodeToRemove != NULL){
-			anode<TKey, TVal>** substitution = NULL;
-			anode<TKey, TVal>* substitutionChild = NULL;
-			if ( ( substitution = findLeftMostChild(*nodeToRemove) ) == NULL){
-				substitution = findRightMostChild(*nodeToRemove);
-			}
-			anode<TKey, TVal>* leftChi = NULL;
-			anode<TKey, TVal>* rightChi = NULL;
-			anode<TKey, TVal>* del = (*nodeToRemove);
+	bool erase(const TKey& key) {
+		if(!m_root)
+			return false;
+
+		panode_t* stackPathForKey[StackSize] = {0};
+		int N1 = 0;
+		panode_t* nodeToRemove = (m_root->key == key) ? &m_root : findNodePtrPtr(&m_root, key, stackPathForKey, N1);
+
+		if (!nodeToRemove || (!*nodeToRemove))
+			return false;
+
+		panode_t* stackPathForSub[StackSize];
+		int N2 = 0;
+		panode_t* ppSubstitution = findSubstitution(*nodeToRemove, stackPathForSub, N2);
+		panode_t  pSubstitution = ppSubstitution ? *ppSubstitution : NULL;
+		panode_t pSubstitutionChild = pSubstitution ? pSubstitution->left ? pSubstitution->left : pSubstitution->right : NULL;
+		panode_t pDeleteMe = (*nodeToRemove);
+
+		if (ppSubstitution) {
+			*ppSubstitution = pSubstitutionChild;
+			*nodeToRemove   = pSubstitution;
+			pSubstitution->left  = pDeleteMe->left  != pSubstitution ? pDeleteMe->left  : NULL;
+			pSubstitution->right = pDeleteMe->right != pSubstitution ? pDeleteMe->right : NULL;
+			updateNode(pSubstitution->left);
+			updateNode(pSubstitution->right);
+			updateNode(pSubstitution);
 			
-			if (substitution != NULL){
-				anode<TKey, TVal>* leftChi = NULL;
-				anode<TKey, TVal>* rightChi = NULL;
-				anode<TKey, TVal>* del = (*nodeToRemove);
-				anode<TKey, TVal>* sub = (*substitution);
-
-				leftChi = del->left!=sub? del->left : NULL;
-				rightChi = del->right!=sub? del->right : NULL;
-
-				delete del;                                
-
-				(*nodeToRemove) = (sub);
-				(*nodeToRemove)->left = leftChi;
-				(*nodeToRemove)->right = rightChi;
-				if(substitutionChild != NULL)
-					substitution = &substitutionChild;
-				else
-					substitution = NULL;
-				(*nodeToRemove)->calcChildCount();
-				(*nodeToRemove)->calcBalance();
-			}else{
-				delete del;
-				del = NULL;
-				*nodeToRemove = NULL;
-			}
-
-			anode<TKey, TVal>** root = NULL;
-			// Do rotations
-			while (! parents.empty()) {
-				root = parents.top();parents.pop();
-
-				(*root)->calcChildCount();
-				(*root)->calcBalance();
-
-				if ((*root)->balance >= 2){
-					anode<TKey, TVal>* left = (*root)->left;
-					if(left->balance >= 0){
-						littleRightRotate(root);
-					} else if (left->balance <= -1){
-						bigRightRotate(root);
-					}
-				} else if ((*root)->balance <= -2) {
-					// Right tree outweightts left one
-					anode<TKey, TVal>* right = (*root)->right;
-					if (right->balance <= 0){
-						//Simple left rotation is needed
-						littleLeftRotate(root);
-					} else if (right->balance  >= 1){
-						//Double left rotation is needed because right-left outweights
-						bigLeftRotate(root);
-					}
-				}
-			}
-			if (root && (*root)) m_root = *root;
+		} else {
+			*nodeToRemove = NULL;
 		}
+
+		for (int i = N2-1; i >= 0; --i)
+			updateNode(*(stackPathForSub[i]));
+
+		balanceStack(stackPathForKey, N1);
+		deallocNode(pDeleteMe);
+		return true;
 	}
 	//=========================================================================
-	const TVal& findNode(const TKey& key) /* throw (std::exception) */ {
+	const TVal& findNode(const TKey& key) const  {
 		return operator[](key);
 	}
 	//=========================================================================
-	const TVal* findPtrToNode(const TKey& key){
-		if (m_root != NULL)
-			return findNodeInt(m_root, key);
-		return NULL;
+	const TVal* findPtrToNode(const TKey& key) const {
+		return findNodeInt(m_root, key);
 	}
 	//=========================================================================
-	const TVal& operator[](const TKey& key)/* throw (std::exception) */ {
-		if (m_root != NULL){
-			const TVal* val = findNodeInt(m_root, key);
-			if (val)
-				return *val;
-		}
-		throw std::exception("ff_amap failed to find node!");
+	const TVal& operator[](const TKey& key) const {
+		const TVal* val = findNodeInt(m_root, key);
+
+		if (val)
+			return *val;
+
+		return TVal();
 	}
 	//=========================================================================
-	void insertNode(const TKey& key, const TVal& val){
-		if (m_root == NULL){
-			m_root = new anode<TKey, TVal>(key, val);
-		} else {
-			anode<TKey, TVal>* freshNode = new anode<TKey, TVal>(key, val);
-			insertInt(&m_root, freshNode);
-		}
+	TVal& operator[](const TKey& key) {
+		panode_t* stackPath[StackSize];
+		int N = 0;
+		panode_t* pNode = findNodePtrPtr(&m_root, key, stackPath, N);
+		if (*pNode)
+			return (*pNode)->val;
+		
+		*pNode = allocNode(key, TVal());
+		TVal& retVal = (*pNode)->val;
+		balanceStack(stackPath, N);
+		return retVal;
+	}
+	//=========================================================================
+	void insertNode(const TKey& key, const TVal& val) {
+		int N = 0;
+		insertInt(&m_root, key, val, N);
+		balanceStack(m_parentStack, N);
 	}
 
 private:
-
+	//=========================================================================
+	inline void balanceStack(panode_t** nodes, int &N) {
+		panode_t* node;
+		for (int i = N - 1; i >= 0; --i) {
+			node = nodes[i];
+			*node = balanceSubtree(*node);
+		}
+	}
+	//=========================================================================
+	inline void updateNode(panode_t node) {
+		if (!node)
+			return;
+		node->calcChildCount();
+		node->calcBalance();
+	}
+	//=========================================================================
+	inline void updateTwoNodesCnt(panode_t a, panode_t b) {
+		a->calcChildCount();
+		b->calcChildCount();
+		a->calcBalance();
+		b->calcBalance();
+	}
 	//=========================================================================
 	//a         b
 	// \  =>   /
 	//	b     a
 	//=========================================================================
-	void littleLeftRotate(anode<TKey, TVal>** pA){
-		anode<TKey, TVal>* a = *pA;
-		anode<TKey, TVal>* b = a->right;
-		anode<TKey, TVal> *l = a->left, *c = b->left, *r = b->right;
-		a->left = l;
-		a->right = c;
+	inline panode_t littleLeftRotate(panode_t a) {
+		panode_t b = a->right;
+		a->right = b->left;
 		b->left = a;
-		b->right = r;
-		a->calcChildCount();
-		b->calcChildCount();
-		a->calcBalance();
-		b->calcBalance();
-		*pA = b;
+		updateTwoNodesCnt(a, b);
+		return b;
 	}
 	//=========================================================================
 	//  a    b
 	// /  =>  \
 	//b	       a
 	//=========================================================================
-	void littleRightRotate(anode<TKey, TVal>** pA){
-		anode<TKey, TVal>* a = *pA;
-		anode<TKey, TVal>* b = a->left;
-		anode<TKey, TVal> *l = b->left, *c = b->right, *r = a->right;
-		a->left = c;
-		a->right = r;
-		b->left = l;
+	inline anode_t* littleRightRotate(panode_t a) {
+		panode_t b = a->left;
+		a->left = b->right;
 		b->right = a;
-		a->calcChildCount();
-		b->calcChildCount();
-		a->calcBalance();
-		b->calcBalance();
-		*pA = b;
+		updateTwoNodesCnt(a, b);
+		return b;
 	}
 	//=========================================================================
-	void bigLeftRotate(anode<TKey, TVal> **aa){
-		anode<TKey, TVal> *a = *aa; 
-		anode<TKey, TVal> *b = a->right;
-		anode<TKey, TVal> *c = b->left;
-		anode<TKey, TVal>** aaa = &b;
-		littleRightRotate(aaa);
-		a->right = *aaa;
-		aaa = &a;
-		littleLeftRotate(aaa);
-		*aa = *aaa;
+	inline panode_t bigLeftRotate(panode_t a) {
+		panode_t b = a->right;
+		a->right = littleRightRotate(b);
+		return littleLeftRotate(a);
 	}
 	//=========================================================================
-	void bigRightRotate(anode<TKey, TVal> **aa){
-		anode<TKey, TVal> *a = *aa; 
-		anode<TKey, TVal> *b = a->left;
-		anode<TKey, TVal> *c = b->right;
-		anode<TKey, TVal>** aaa = &b;
-		littleLeftRotate(aaa);
-		a->left = *aaa;
-		aaa = &a;
-		littleRightRotate(aaa);
-		*aa = *aaa;
+	inline panode_t bigRightRotate(panode_t a) {
+		panode_t b = a->left;
+		a->left = littleLeftRotate(b);
+		return littleRightRotate(a);
 	}
 	//=========================================================================
-	anode<TKey, TVal>** findLeftMostChild(anode<TKey, TVal>* root){
-		if (root != NULL && root->left != NULL && root->left->left != NULL){
-			return findLeftMostChild(root->left);
-		} else if (root == NULL){
+	panode_t* findSubstitution(panode_t& root, panode_t** parents,  int &N) {
+		if (!root)
 			return NULL;
-		} else if (root->left == NULL){
-			return NULL;
-		} else if (root->left->left == NULL){
-			return &(root->left);
-		}
+
+		panode_t* pRetVal;
+		pRetVal = getOnlyOneChild(root);
+		if (pRetVal)
+			return pRetVal;
+
+		if (root->left)
+			return findRightMostChild(root->left, parents, N);
+
+		if (root->right)
+			return findLeftMostChild(root->right, parents, N);
+
 		return NULL;
 	}
 	//=========================================================================
-	anode<TKey, TVal>** findRightMostChild(anode<TKey, TVal>* root){
-		if (root != NULL && root->right != NULL && root->right->right != NULL){
-			return findRightMostChild(root->right);
-		} else if (root == NULL){
+	panode_t* getOnlyOneChild(panode_t root) {
+		if (!root)
 			return NULL;
-		} else if (root->right == NULL){
-			return NULL;
-		} else if (root->right->right == NULL){
-			return &(root->right);
-		}
+		if (root && root->childCount == 1)
+			return root->left ?  &(root->left) : &(root->right);
 		return NULL;
 	}
 	//=========================================================================
-	anode<TKey, TVal>** findNodePtrPtr(anode<TKey, TVal>** pRoot, stack< anode<TKey, TVal> ** >& parents, const TKey& key, bool& opResult){
-		parents.push(pRoot);
-		anode <TKey, TVal> * root = *(pRoot);
-		if (root->left != NULL && root->left->key == key){
-			opResult = true;
-			return &(root->left);
-		} else if (root->right != NULL && root->right->key == key){
-			opResult = true;
-			return &(root->right);
-		} else if (root->left != NULL && !m_predicate(root->key, key)){
-			anode<TKey, TVal>** res = findNodePtrPtr(&(root->left), parents, key, opResult);
-			if (opResult){
-				return res;
-			}
-		} else if (root->right != NULL && m_predicate(root->key, key)){
-			anode<TKey, TVal>** res = findNodePtrPtr(&(root->right), parents, key, opResult);
-			if (opResult){
-				return res;
-			}
+	panode_t* findLeftMostChild(panode_t& root, panode_t** parents,  int &N) {
+		panode_t* node = &root;
+		int i = 0;
+		while ((*node)->left) {
+			parents[i++] = node;
+			node = &((*node)->left);
 		}
-		opResult = false;
-		return NULL;
+		parents[i++] = node;
+		N = i;
+
+		return node;
 	}
 	//=========================================================================
-	const TVal* findNodeInt(const anode<TKey, TVal>* root, const TKey& key) const {
-		if (root->key == key){
+	panode_t* findRightMostChild(panode_t& root, panode_t** parents,  int &N) {
+		panode_t* node = &root;
+		int i = 0;
+		while ((*node)->right) {
+			parents[i++] = node;
+			node = &((*node)->right);
+		}
+		parents[i++] = node;
+		N = i;
+
+		return node;
+	}
+	//=========================================================================
+	panode_t* findNodePtrPtr(panode_t* root, const TKey& key, panode_t** parents, int& N) {
+		panode_t* node = root;
+
+		int i = 0;
+		while(*node && (*node)->key != key) {
+			parents[i++] = node;
+			node = pchildOnPredicate(*node, key);
+		}
+		N = i;
+		return node;
+	}
+	//=========================================================================
+	TVal* findNodeInt(const panode_t root, const TKey& key) const {
+		if (!root)
+			return NULL;
+
+		if (root->key == key)
 			return &(root->val);
-		} else  {
-			const TVal* retVal = NULL;
-			if (root->left != NULL){
-				retVal = findNodeInt(root->left, key);
-				if (retVal)
-					return retVal;
-			}
-			if (root->right != NULL){
-				retVal = findNodeInt(root->right, key);
-				if (retVal)
-					return retVal;
-			}
-			return retVal;
-		}
+
+		return findNodeInt(childOnPredicate(root, key), key);
 	}
 	//=========================================================================
-	void insertInt(anode<TKey, TVal>** pRoot, anode<TKey, TVal>* freshNode){
-		anode<TKey, TVal>* root = *pRoot;
-		if (root->key != freshNode->key){
-			if(!m_predicate(root->key, freshNode->key)){
-				//InsertTo left
-				if(root->left == NULL){
-					root->left = freshNode;
-					root->childCount++;
-					root->calcBalance();
-				} else {
-					insertInt((&root->left), freshNode);
-				}
+	inline const panode_t& childOnPredicate(const panode_t root, const TKey& key) const {
+		return (m_predicate(root->key, key)) ? root->right : root->left;
+	}
+	//=========================================================================
+	inline panode_t* pchildOnPredicate(const panode_t root, const TKey& key) {
+		return (m_predicate(root->key, key)) ? &(root->right) : &(root->left);
+	}
+	//=========================================================================
+	inline panode_t& childOnPredicate(panode_t root, const TKey& key) {
+		return (m_predicate(root->key, key)) ? root->right : root->left;
+	}
+	//=========================================================================
+	// takes the root of the subtree to balance, returns new root
+	//=========================================================================
+	inline panode_t balanceSubtree(panode_t root) {
+		updateNode(root->left);
+		updateNode(root->right);
+		updateNode(root);
 
-			} else {
-				//InsertTo right
-				if(root->right == NULL){
-					root->right = freshNode;
-					root->childCount++;
-				} else {
-					insertInt((&root->right), freshNode);
-				}
-			}
+		if (root->balance >= 2) {
+			panode_t left = root->left;
+			if(left->balance >= 0)
+				return littleRightRotate(root);
+			if (left->balance <= -1)
+				return bigRightRotate(root);
+			
+		} else if (root->balance <= -2) {
+			panode_t right = root->right;
+			if (right->balance <= 0)
+				return littleLeftRotate(root);
 
-			root->calcChildCount();
-			root->calcBalance();
-
-			if (root->balance >= 2){
-				anode<TKey, TVal>* left = root->left;
-				if(left->balance >= 0){
-					littleRightRotate(&root);
-				} else if (left->balance <= -1){
-					bigRightRotate(&root);
-				}
-			} else if (root->balance <= -2) {
-				// Right tree outweightts left one
-				anode<TKey, TVal>* right = root->right;
-				if (right->balance <= 0){
-					//Simple left rotation is needed
-					littleLeftRotate(&root);
-				} else if (right->balance  >= 1){
-					//Double left rotation is needed because right-left outweights
-					bigLeftRotate(&root);
-				}
-			}
-			root->calcChildCount();
-			root->calcBalance();
-			*pRoot = root;
+			if (right->balance >= 1) 
+				return bigLeftRotate(root);
 		}
+		return root;
+	}
+	//=========================================================================
+	// Deallocate node
+	//=========================================================================
+	inline void deallocNode(panode_t node) {
+		if(node)
+			delete node;
+		node = NULL;
+	}
+	//=========================================================================
+	inline panode_t allocNode(const TKey& key, const TVal& val) {
+		return new anode_t(key, val);
 	}
 	//=========================================================================
 	// Returns length of the max path in the tree. !Very inefficient! Only for tests
 	//=========================================================================
-	int getMaxPath(anode<TKey, TVal>* root){
-		if (root != NULL){
+	int getMaxPath(panode_t root) {
+		if (root != NULL) {
 			return std::max<int>(getMaxPath(root->left)+1, getMaxPath(root->right) + 1); 
-		}else{ 
+		} else { 
 			return 0;
 		}
 	}
 	//=========================================================================
+	int getNumElements(const panode_t root) const {
+		if (!root)
+			return 0;
+		return getNumElements(root->left) + getNumElements(root->right) + 1;
+	}
+
+public:
+	//=========================================================================
 	// Check balance factor of the tree, pass amount of elements
 	//=========================================================================
-	bool checkBalancing(int elements){
+	bool checkBalancing(int elements) {
 		int n = getMaxPath(m_root);
+		double nom = (double)log10((double)elements);
+		double denom = (double)log10((double)2);
 		int k = (long)ceil(1.44*(double)log10((double)elements) / (double)log10((double)2));
-		if ((n - k) <= 2)
+		if ((n - k) <= 1)
 			return true;
 		else  
 			return false;
 	}
+	//=========================================================================
+	// returns maximum path in a tree
+	//=========================================================================
+	int maxPath() {
+		return getMaxPath(m_root);
+	}
+	//=========================================================================
+	// returns amount of elements in a tree
+	//=========================================================================
+	int count() const {
+		return getNumElements(m_root);
+	}
+	//=========================================================================
+	bool checkChildCounts(panode_t root) {
+		if (!root)
+			return true;
+		int ileft = getNumElements(root->left);
+		int iright = getNumElements(root->right);
+		if (ileft + iright  == root->childCount) {
+			if (checkChildCounts(root->left) && checkChildCounts(root->right)) {
+				return true;
+			}
+		} 
+		return false;
+	}
+	//=========================================================================
+	bool checkChildren() {
+		return checkChildCounts(m_root);
+	}
 };
-// TODO: Write visualization and consistency check, check memory leaks, anode => template
-// TODO: Write unit tests for big rotates
-// TODO: Rewrite non-recursive insert
 #endif
