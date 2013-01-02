@@ -44,6 +44,8 @@ namespace {
 			this->key	  = _node.key; 
 			this->val	  = _node.val; 
 			this->balance = _node.balance;
+			this->left    = _node.left;
+			this->right   = _node.right;
 			return _node;
 		}
 
@@ -63,26 +65,40 @@ namespace {
 		anode<TKey, TVal> * left;
 		anode<TKey, TVal> * right;
 	};
+
+	static void ff_assert(bool expression, const char* text = NULL) {
+#ifdef _DEBUG
+		if (! expression )
+			throw std::exception(text);
+#endif
+	}
 }
 //=========================================================================
 // Map implementation based on AVL Tree
 //=========================================================================
-template <typename TKey, typename TVal, typename TPred = std::less<TKey> >
+template <typename TKey
+, typename TVal
+, typename TPred = std::less<TKey>
+, typename TAlloc = std::allocator<anode<TKey, TVal> > >
 class ff_amap {
 public :
-	typedef anode<TKey, TVal>  anode_t;
-	typedef anode<TKey, TVal>* panode_t;
-	typedef std::stack<panode_t*>   stack_panode_t;
+	typedef anode<TKey, TVal>	  anode_t;
+	typedef anode<TKey, TVal>*	  panode_t;
+	typedef std::stack<panode_t*> stack_panode_t;
 
 private:
 	panode_t m_root;
-	TPred m_predicate;
+	TPred	 m_predicate;
+	TAlloc	 m_allocator;
+
+	size_t   m_size;
 
 	enum {StackSize = 4096};
 
 public:
 	ff_amap()
-		: m_root(NULL) {}
+		: m_root(NULL)
+		, m_size() {}
 
 	// Friend class for testing private member functions
 	friend class FF_AVLTree_test;
@@ -96,9 +112,9 @@ public:
 
 		panode_t* stackPathForKey[StackSize] = {0};
 		int N1 = 0;
-		panode_t* nodeToRemove = (m_root->key == key) ? &m_root : findNodePtrPtr(&m_root, key, stackPathForKey, N1);
+		panode_t* nodeToRemove = findNodePtrPtr(&m_root, key, stackPathForKey, N1);
 
-		if (!nodeToRemove || (!*nodeToRemove))
+		if (!nodeToRemove || !*nodeToRemove)
 			return false;
 
 		panode_t* stackPathForSub[StackSize];
@@ -106,7 +122,7 @@ public:
 		panode_t* ppSubstitution = findSubstitution(*nodeToRemove, stackPathForSub, N2);
 		panode_t  pSubstitution = ppSubstitution ? *ppSubstitution : NULL;
 		panode_t pSubstitutionChild = pSubstitution ? pSubstitution->left ? pSubstitution->left : pSubstitution->right : NULL;
-		panode_t pDeleteMe = (*nodeToRemove);
+		panode_t pDeleteMe = *nodeToRemove;
 
 		if (ppSubstitution) {
 			*ppSubstitution = pSubstitutionChild;
@@ -125,25 +141,17 @@ public:
 			updateNode(*(stackPathForSub[i]));
 
 		balanceStack(stackPathForKey, N1);
-		deallocNode(pDeleteMe);
+		dealloc(pDeleteMe);
+		m_size++;
 		return true;
 	}
 	//=========================================================================
-	const TVal& findNode(const TKey& key) const  {
-		return operator[](key);
-	}
-	//=========================================================================
-	const TVal* findPtrToNode(const TKey& key) const {
+	const TVal* nodePtr(const TKey& key) const {
 		return findNodeInt(m_root, key);
 	}
 	//=========================================================================
-	const TVal& operator[](const TKey& key) const {
-		const TVal* val = findNodeInt(m_root, key);
-
-		if (val)
-			return *val;
-
-		return TVal();
+	void insert(const TKey& key, const TVal& val) {
+		operator[](key) = val;
 	}
 	//=========================================================================
 	TVal& operator[](const TKey& key) {
@@ -153,19 +161,23 @@ public:
 		if (*pNode)
 			return (*pNode)->val;
 		
-		*pNode = allocNode(key, TVal());
+		*pNode = alloc(key, TVal());
 		TVal& retVal = (*pNode)->val;
 		balanceStack(stackPath, N);
+		m_size++;
 		return retVal;
 	}
 	//=========================================================================
-	void insertNode(const TKey& key, const TVal& val) {
-		int N = 0;
-		insertInt(&m_root, key, val, N);
-		balanceStack(m_parentStack, N);
+	size_t count() {
+		return m_size;
 	}
 
+
 private:
+	//=========================================================================
+	//  PRIVATE
+	//=========================================================================
+
 	//=========================================================================
 	inline void balanceStack(panode_t** nodes, int &N) {
 		panode_t* node;
@@ -226,8 +238,7 @@ private:
 	}
 	//=========================================================================
 	panode_t* findSubstitution(panode_t& root, panode_t** parents,  int &N) {
-		if (!root)
-			return NULL;
+		ff_assert(root != NULL, "NULL passed to findSubstitution");
 
 		panode_t* pRetVal;
 		pRetVal = getOnlyOneChild(root);
@@ -244,8 +255,6 @@ private:
 	}
 	//=========================================================================
 	panode_t* getOnlyOneChild(panode_t root) {
-		if (!root)
-			return NULL;
 		if (root && root->childCount == 1)
 			return root->left ?  &(root->left) : &(root->right);
 		return NULL;
@@ -289,14 +298,13 @@ private:
 		return node;
 	}
 	//=========================================================================
-	TVal* findNodeInt(const panode_t root, const TKey& key) const {
-		if (!root)
-			return NULL;
+	const TVal* findNodeInt(const panode_t root, const TKey& key) const {
+		panode_t current = root;
 
-		if (root->key == key)
-			return &(root->val);
-
-		return findNodeInt(childOnPredicate(root, key), key);
+		while (current && current->key != key)
+			current = childOnPredicate(current, key);
+		
+		return current ? &(current->val) : NULL;
 	}
 	//=========================================================================
 	inline const panode_t& childOnPredicate(const panode_t root, const TKey& key) const {
@@ -306,12 +314,6 @@ private:
 	inline panode_t* pchildOnPredicate(const panode_t root, const TKey& key) {
 		return (m_predicate(root->key, key)) ? &(root->right) : &(root->left);
 	}
-	//=========================================================================
-	inline panode_t& childOnPredicate(panode_t root, const TKey& key) {
-		return (m_predicate(root->key, key)) ? root->right : root->left;
-	}
-	//=========================================================================
-	// takes the root of the subtree to balance, returns new root
 	//=========================================================================
 	inline panode_t balanceSubtree(panode_t root) {
 		updateNode(root->left);
@@ -336,19 +338,21 @@ private:
 		return root;
 	}
 	//=========================================================================
-	// Deallocate node
+	// alloc/dealloc
 	//=========================================================================
-	inline void deallocNode(panode_t node) {
+	inline void dealloc(panode_t node) {
 		if(node)
-			delete node;
+			m_allocator.deallocate(node, 1);
 		node = NULL;
 	}
 	//=========================================================================
-	inline panode_t allocNode(const TKey& key, const TVal& val) {
-		return new anode_t(key, val);
+	inline panode_t alloc(const TKey& key, const TVal& val) {
+		panode_t ptr = m_allocator.allocate(1,0);
+		m_allocator.construct(ptr, anode_t(key, val));
+		return ptr;
 	}
 	//=========================================================================
-	// Returns length of the max path in the tree. !Very inefficient! Only for tests
+	// Only for tests
 	//=========================================================================
 	int getMaxPath(panode_t root) {
 		if (root != NULL) {
@@ -363,16 +367,15 @@ private:
 			return 0;
 		return getNumElements(root->left) + getNumElements(root->right) + 1;
 	}
-
 public:
 	//=========================================================================
-	// Check balance factor of the tree, pass amount of elements
+	// Test stuff
 	//=========================================================================
 	bool checkBalancing(int elements) {
 		int n = getMaxPath(m_root);
 		double nom = (double)log10((double)elements);
 		double denom = (double)log10((double)2);
-		int k = (long)ceil(1.44*(double)log10((double)elements) / (double)log10((double)2));
+		int k = (long)ceil(1.44*nom/denom);
 		if ((n - k) <= 1)
 			return true;
 		else  
@@ -387,7 +390,7 @@ public:
 	//=========================================================================
 	// returns amount of elements in a tree
 	//=========================================================================
-	int count() const {
+	int dcount() const {
 		return getNumElements(m_root);
 	}
 	//=========================================================================
