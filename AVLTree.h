@@ -1,4 +1,4 @@
-#include "AVLTree_test.h"
+#include "_tests/AVLTree_test.h"
 #ifndef __FF_AVL_TREE__
 #define __FF_AVL_TREE__
 
@@ -28,7 +28,15 @@ namespace {
 			: balance(0)
 			, right(NULL)
 			, left(NULL)
-			, childCount(0) {}
+			, childCount(0)
+			, parent(NULL) {}
+
+		anode(TKey _k, TVal _v, anode* _parent) 
+			: balance(0)
+			, right(NULL)
+			, left(NULL)
+			, childCount(0)
+		{ key = _k; val = _v; parent = _parent; }
 
 		anode(TKey _k, TVal _v) 
 			: balance(0)
@@ -46,6 +54,7 @@ namespace {
 			this->balance = _node.balance;
 			this->left    = _node.left;
 			this->right   = _node.right;
+			this->parent  = _node.parent;
 			return _node;
 		}
 
@@ -62,6 +71,7 @@ namespace {
 		int balance;
 		int childCount;
 
+		anode<TKey, TVal> * parent;
 		anode<TKey, TVal> * left;
 		anode<TKey, TVal> * right;
 	};
@@ -86,7 +96,64 @@ public :
 	typedef anode<TKey, TVal>*	  panode_t;
 	typedef std::stack<panode_t*> stack_panode_t;
 
-private:
+public:
+// 	class iterator {
+// 	public:
+// 		iterator(panode_t _node) {
+// 			m_node = _node;
+// 		}
+// 
+// 		iterator() {
+// 			m_node = NULL;
+// 		}
+// 
+// 		iterator(const iterator& _i) {
+// 			m_node = _i.m_node;
+// 		}
+// 
+// 		const iterator& operator++() {
+// 			// Node is visited go to left-visit-right
+// 			panode_t prev = m_node;
+// 			if (m_node->right) {
+// 				m_node = m_node->right;
+// 				while(m_node->left) m_node = m_node->left;
+// 				return *this;
+// 			}
+// 
+// 			m_node = m_node->parent;
+// 
+// 			if (!m_node)
+// 				return *this;// end()
+// 
+// 			// if prev was left then visit this node
+// 			if (m_node->left == prev) {
+// 				return *this; // then go to right
+// 			}
+// 
+// 			// if prev was right then go up, until we're not in right subtree
+// 			if (m_node->right == prev) {
+// 				while(m_node && m_node->right == prev) {
+// 					prev = m_node;
+// 					m_node = m_node->parent;
+// 				}
+// 				return *this;
+// 			}
+// 
+// 			return *this;
+// 		}
+// 
+// 		bool operator!=(const iterator& comp2) {
+// 			return this->m_node != comp2.m_node;
+// 		}
+// 
+// 		panode_t operator->() {
+// 			return m_node;
+// 		}
+// 
+// 	private:
+// 		panode_t m_node;
+// 	};
+
 	panode_t m_root;
 	TPred	 m_predicate;
 	TAlloc	 m_allocator;
@@ -129,6 +196,8 @@ public:
 			*nodeToRemove   = pSubstitution;
 			pSubstitution->left  = pDeleteMe->left  != pSubstitution ? pDeleteMe->left  : NULL;
 			pSubstitution->right = pDeleteMe->right != pSubstitution ? pDeleteMe->right : NULL;
+			pSubstitution->parent = pDeleteMe->parent;
+
 			updateNode(pSubstitution->left);
 			updateNode(pSubstitution->right);
 			updateNode(pSubstitution);
@@ -146,13 +215,11 @@ public:
 		return true;
 	}
 	//=========================================================================
-	const TVal* nodePtr(const TKey& key) const {
-		return findNodeInt(m_root, key);
-	}
+	const TVal* nodePtr(const TKey& key) const 
+	{ return findNodeInt(m_root, key); }
 	//=========================================================================
-	void insert(const TKey& key, const TVal& val) {
-		operator[](key) = val;
-	}
+	void insert(const TKey& key, const TVal& val) 
+	{ operator[](key) = val; }
 	//=========================================================================
 	TVal& operator[](const TKey& key) {
 		panode_t* stackPath[StackSize];
@@ -161,17 +228,88 @@ public:
 		if (*pNode)
 			return (*pNode)->val;
 		
-		*pNode = alloc(key, TVal());
+		*pNode = alloc(key, TVal(), N==0? NULL:*(stackPath[N-1]));
 		TVal& retVal = (*pNode)->val;
 		balanceStack(stackPath, N);
 		m_size++;
 		return retVal;
 	}
 	//=========================================================================
-	size_t count() {
-		return m_size;
-	}
+	size_t count() const
+	{ return m_size; }
 
+	//=========================================================================
+	// Nested iterator class
+	// Supports -> and ++ (TODO: --)
+	//=========================================================================
+	class iterator {
+	public:
+		iterator(panode_t _node)
+		{ m_node = _node; }
+
+		iterator()
+		{ m_node = NULL; }
+
+		iterator(const iterator& _i)
+		{ m_node = _i.m_node; }
+
+		const iterator& operator++() {
+			// Node is visited go to left-visit-right
+			panode_t prev = m_node;
+			if (m_node->right) {
+				m_node = m_node->right;
+				while(m_node->left) 
+					m_node = m_node->left;
+				return *this;
+			}
+
+			m_node = m_node->parent;
+
+			if (!m_node)
+				return *this;// end()
+
+			// if prev was left then visit this node
+			if (m_node->left == prev) {
+				return *this; // then go to right
+			}
+
+			// if prev was right then go up, until we're not in right subtree
+			if (m_node->right == prev) {
+				while(m_node && m_node->right == prev) {
+					prev = m_node;
+					m_node = m_node->parent;
+				}
+				return *this;
+			}
+
+			return *this;
+		}
+
+		const iterator& operator--() {
+
+		}
+
+		bool operator!=(const iterator& comp2) const 
+		{ return this->m_node != comp2.m_node; }
+
+		const panode_t operator->() const 
+		{ return m_node; }
+
+	private:
+		panode_t m_node;
+	};// iterator
+	//=========================================================================
+	// This intended to work in O(log n)
+	//=========================================================================
+	iterator begin() {
+		panode_t current = m_root;
+		while(current->left) current = current->left;
+		return iterator(current);
+	}
+	//=========================================================================
+	iterator end() {
+		return iterator();
+	}
 
 private:
 	//=========================================================================
@@ -192,13 +330,23 @@ private:
 			return;
 		node->calcChildCount();
 		node->calcBalance();
+		if (node->left) 
+			node->left->parent = node;
+		if (node->right) 
+			node->right->parent = node;
 	}
 	//=========================================================================
-	inline void updateTwoNodesCnt(panode_t a, panode_t b) {
+	inline void updateTwoNodesAfterRotate(panode_t a, panode_t b) {
 		a->calcChildCount();
 		b->calcChildCount();
 		a->calcBalance();
 		b->calcBalance();
+		b->parent = a->parent;
+		a->parent = b;
+		if (a->left)  a->left->parent = a;
+		if (a->right) a->right->parent = a;
+		if (b->left)  b->left->parent = b;
+		if (b->right) b->right->parent = b;
 	}
 	//=========================================================================
 	//a         b
@@ -209,7 +357,7 @@ private:
 		panode_t b = a->right;
 		a->right = b->left;
 		b->left = a;
-		updateTwoNodesCnt(a, b);
+		updateTwoNodesAfterRotate(a, b);
 		return b;
 	}
 	//=========================================================================
@@ -221,7 +369,7 @@ private:
 		panode_t b = a->left;
 		a->left = b->right;
 		b->right = a;
-		updateTwoNodesCnt(a, b);
+		updateTwoNodesAfterRotate(a, b);
 		return b;
 	}
 	//=========================================================================
@@ -346,14 +494,17 @@ private:
 		node = NULL;
 	}
 	//=========================================================================
-	inline panode_t alloc(const TKey& key, const TVal& val) {
+	inline panode_t alloc(const TKey& key, const TVal& val, panode_t parent) {
 		panode_t ptr = m_allocator.allocate(1,0);
-		m_allocator.construct(ptr, anode_t(key, val));
+		m_allocator.construct(ptr, anode_t(key, val, parent));
 		return ptr;
 	}
-	//=========================================================================
-	// Only for tests
-	//=========================================================================
+
+#ifdef _DEBUG
+//=========================================================================
+// Next methods may be used only for tests.
+// They are VERY inefficient and ugly, don't look at them
+//=========================================================================
 	int getMaxPath(panode_t root) {
 		if (root != NULL) {
 			return std::max<int>(getMaxPath(root->left)+1, getMaxPath(root->right) + 1); 
@@ -367,31 +518,16 @@ private:
 			return 0;
 		return getNumElements(root->left) + getNumElements(root->right) + 1;
 	}
-public:
 	//=========================================================================
-	// Test stuff
-	//=========================================================================
-	bool checkBalancing(int elements) {
-		int n = getMaxPath(m_root);
-		double nom = (double)log10((double)elements);
-		double denom = (double)log10((double)2);
-		int k = (long)ceil(1.44*nom/denom);
-		if ((n - k) <= 1)
+	bool checkParents_internal(panode_t node, panode_t parent) {
+		if (!node)
 			return true;
-		else  
+
+		if (node->parent != parent)
 			return false;
-	}
-	//=========================================================================
-	// returns maximum path in a tree
-	//=========================================================================
-	int maxPath() {
-		return getMaxPath(m_root);
-	}
-	//=========================================================================
-	// returns amount of elements in a tree
-	//=========================================================================
-	int dcount() const {
-		return getNumElements(m_root);
+
+		return checkParents_internal(node->left, node) &&
+			   checkParents_internal(node->right, node);
 	}
 	//=========================================================================
 	bool checkChildCounts(panode_t root) {
@@ -406,9 +542,41 @@ public:
 		} 
 		return false;
 	}
+
+public:
 	//=========================================================================
-	bool checkChildren() {
-		return checkChildCounts(m_root);
+	// returns true if this tree balance factor is less than 1.44*(log n)
+	//=========================================================================
+	bool checkBalancing(int elements) {
+		int n = getMaxPath(m_root);
+		double nom = (double)log10((double)elements);
+		double denom = (double)log10((double)2);
+		int k = (long)ceil(1.44*nom/denom);
+		if ((n - k) <= 1)
+			return true;
+		else  
+			return false;
 	}
+	//=========================================================================
+	// returns maximum path in a tree
+	//=========================================================================
+	int maxPath() 
+	{ return getMaxPath(m_root); }
+	//=========================================================================
+	// returns amount of elements in a tree
+	//=========================================================================
+	int dcount() const 
+	{ return getNumElements(m_root); }
+	//=========================================================================
+	// returns true if parent property is correct in every node
+	//=========================================================================
+	bool checkParents() 
+	{ return checkParents_internal(m_root, NULL); }
+	//=========================================================================
+	// returns true if childCount property is set correctly in every node
+	//=========================================================================
+	bool checkChildren() 
+	{ return checkChildCounts(m_root); }
+#endif//_DEBUG
 };
 #endif
