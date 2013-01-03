@@ -96,64 +96,7 @@ public :
 	typedef anode<TKey, TVal>*	  panode_t;
 	typedef std::stack<panode_t*> stack_panode_t;
 
-public:
-// 	class iterator {
-// 	public:
-// 		iterator(panode_t _node) {
-// 			m_node = _node;
-// 		}
-// 
-// 		iterator() {
-// 			m_node = NULL;
-// 		}
-// 
-// 		iterator(const iterator& _i) {
-// 			m_node = _i.m_node;
-// 		}
-// 
-// 		const iterator& operator++() {
-// 			// Node is visited go to left-visit-right
-// 			panode_t prev = m_node;
-// 			if (m_node->right) {
-// 				m_node = m_node->right;
-// 				while(m_node->left) m_node = m_node->left;
-// 				return *this;
-// 			}
-// 
-// 			m_node = m_node->parent;
-// 
-// 			if (!m_node)
-// 				return *this;// end()
-// 
-// 			// if prev was left then visit this node
-// 			if (m_node->left == prev) {
-// 				return *this; // then go to right
-// 			}
-// 
-// 			// if prev was right then go up, until we're not in right subtree
-// 			if (m_node->right == prev) {
-// 				while(m_node && m_node->right == prev) {
-// 					prev = m_node;
-// 					m_node = m_node->parent;
-// 				}
-// 				return *this;
-// 			}
-// 
-// 			return *this;
-// 		}
-// 
-// 		bool operator!=(const iterator& comp2) {
-// 			return this->m_node != comp2.m_node;
-// 		}
-// 
-// 		panode_t operator->() {
-// 			return m_node;
-// 		}
-// 
-// 	private:
-// 		panode_t m_node;
-// 	};
-
+private:
 	panode_t m_root;
 	TPred	 m_predicate;
 	TAlloc	 m_allocator;
