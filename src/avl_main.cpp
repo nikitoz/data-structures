@@ -1,12 +1,10 @@
-#include "AVLTree.h"
-#include "AVLTree_test.h"
+#include "avl.hpp"
 #include <iostream>
-#include <istream>
 #include <map>
-#include<ctime>
+#include <ctime>
 #include "HRTimer.h"
 
-#define TEST_ELEMENTS_NUM 89
+#define TEST_ELEMENTS_NUM 40000
 
 typedef ff_amap< int, int, std::less<int> > MapTest;
 typedef std::map<int, int> StdMap;

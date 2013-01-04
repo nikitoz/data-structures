@@ -1,27 +1,17 @@
 #include "_tests/AVLTree_test.h"
-#ifndef __FF_AVL_TREE__
-#define __FF_AVL_TREE__
-
-#include <algorithm>
-#include <cstdio>
-#include <iostream>
-#include <vector>
-#include <map>
-#include <string>
-#include <stack>
-#include <set>
-#include <cassert>
-#include <ctime>
-#include <cstdlib>
+#ifndef __FF_AVLTREE__
+#define __FF_AVLTREE__
 #include <functional>
-#include <cmath>
-#include <memory.h>
-#include <exception>
+#include <xmemory>
 
+#ifdef _DEBUG
+#include <complex>
+#endif // _DEBUG
+#pragma warning(disable:4267)
+//=========================================================================
+// Internal type for saving node data of the AVL-tree
+//=========================================================================
 namespace {
-	//=========================================================================
-	// Internal type for saving node data of the AVL-tree
-	//=========================================================================
 	template<typename TKey, typename TVal>
 	struct anode {
 		anode()
@@ -38,14 +28,15 @@ namespace {
 			, childCount(0)
 		{ key = _k; val = _v; parent = _parent; }
 
-		anode(TKey _k, TVal _v) 
+		anode(TKey _k, TVal _v) // Deprecated
 			: balance(0)
 			, right(NULL)
 			, left(NULL)
 			, childCount(0)
+			, parent(NULL)
 		{ key = _k; val = _v; }
 
-		anode(const anode<TKey, TVal>& a)
+		anode(const anode& a)
 		{ (*this) = a; }
 
 		const anode& operator=(const anode& _node) {
@@ -58,22 +49,20 @@ namespace {
 			return _node;
 		}
 
-		void calcBalance() {
-			balance = ((left == NULL)? 0 : left->childCount+1) - ((right == NULL)? 0 : right->childCount+1);
-		}
+		void calcBalance()
+		{ balance = ((left == NULL)? 0 : left->childCount+1) - ((right == NULL)? 0 : right->childCount+1); }
 
-		void calcChildCount() {
-			childCount = ((left == NULL)? 0 : left->childCount + 1) + ((right == NULL)? 0 : right->childCount + 1);
-		}
+		void calcChildCount()
+		{ childCount = ((left == NULL)? 0 : left->childCount + 1) + ((right == NULL)? 0 : right->childCount + 1); }
 
 		TKey key;
 		TVal val;
 		int balance;
-		int childCount;
+		size_t childCount;
 
-		anode<TKey, TVal> * parent;
-		anode<TKey, TVal> * left;
-		anode<TKey, TVal> * right;
+		anode * parent;
+		anode * left;
+		anode * right;
 	};
 
 	static void ff_assert(bool expression, const char* text = NULL) {
@@ -83,6 +72,7 @@ namespace {
 #endif
 	}
 }
+#pragma warning(default:4267)
 //=========================================================================
 // Map implementation based on AVL Tree
 //=========================================================================
@@ -94,41 +84,25 @@ class ff_amap {
 public :
 	typedef anode<TKey, TVal>	  anode_t;
 	typedef anode<TKey, TVal>*	  panode_t;
-	typedef std::stack<panode_t*> stack_panode_t;
 
-private:
-	panode_t m_root;
-	TPred	 m_predicate;
-	TAlloc	 m_allocator;
-
-	size_t   m_size;
-
-	enum {StackSize = 4096};
-
-public:
 	ff_amap()
 		: m_root(NULL)
 		, m_size() {}
 
-	// Friend class for testing private member functions
-	friend class FF_AVLTree_test;
-	// Friend class for creating dot files
-	friend class FF_AVL_GraphCreator;
 
-	//=========================================================================
 	bool erase(const TKey& key) {
 		if(!m_root)
 			return false;
 
 		panode_t* stackPathForKey[StackSize] = {0};
-		int N1 = 0;
+		size_t N1 = 0;
 		panode_t* nodeToRemove = findNodePtrPtr(&m_root, key, stackPathForKey, N1);
 
 		if (!nodeToRemove || !*nodeToRemove)
 			return false;
 
 		panode_t* stackPathForSub[StackSize];
-		int N2 = 0;
+		size_t N2 = 0;
 		panode_t* ppSubstitution = findSubstitution(*nodeToRemove, stackPathForSub, N2);
 		panode_t  pSubstitution = ppSubstitution ? *ppSubstitution : NULL;
 		panode_t pSubstitutionChild = pSubstitution ? pSubstitution->left ? pSubstitution->left : pSubstitution->right : NULL;
@@ -149,35 +123,35 @@ public:
 			*nodeToRemove = NULL;
 		}
 
-		for (int i = N2-1; i >= 0; --i)
+		for (size_t i = N2-1; i != UNDER_ZERO; --i)
 			updateNode(*(stackPathForSub[i]));
 
 		balanceStack(stackPathForKey, N1);
 		dealloc(pDeleteMe);
-		m_size++;
+		m_size--;
 		return true;
 	}
-	//=========================================================================
+
 	const TVal* nodePtr(const TKey& key) const 
 	{ return findNodeInt(m_root, key); }
-	//=========================================================================
+
 	void insert(const TKey& key, const TVal& val) 
 	{ operator[](key) = val; }
-	//=========================================================================
+
 	TVal& operator[](const TKey& key) {
 		panode_t* stackPath[StackSize];
-		int N = 0;
+		size_t N = 0;
 		panode_t* pNode = findNodePtrPtr(&m_root, key, stackPath, N);
 		if (*pNode)
 			return (*pNode)->val;
 		
-		*pNode = alloc(key, TVal(), N==0? NULL:*(stackPath[N-1]));
+		*pNode = alloc(key, TVal(), N? *stackPath[N-1] : NULL);
 		TVal& retVal = (*pNode)->val;
 		balanceStack(stackPath, N);
 		m_size++;
 		return retVal;
 	}
-	//=========================================================================
+
 	size_t count() const
 	{ return m_size; }
 
@@ -229,7 +203,7 @@ public:
 		}
 
 		const iterator& operator--() {
-
+			// TODO : 
 		}
 
 		bool operator!=(const iterator& comp2) const 
@@ -241,6 +215,7 @@ public:
 	private:
 		panode_t m_node;
 	};// iterator
+
 	//=========================================================================
 	// This intended to work in O(log n)
 	//=========================================================================
@@ -249,7 +224,7 @@ public:
 		while(current->left) current = current->left;
 		return iterator(current);
 	}
-	//=========================================================================
+
 	iterator end() {
 		return iterator();
 	}
@@ -259,15 +234,14 @@ private:
 	//  PRIVATE
 	//=========================================================================
 
-	//=========================================================================
-	inline void balanceStack(panode_t** nodes, int &N) {
+	inline void balanceStack(panode_t** nodes, size_t& N) {
 		panode_t* node;
-		for (int i = N - 1; i >= 0; --i) {
+		for (size_t i = N - 1; i != UNDER_ZERO; --i) {
 			node = nodes[i];
 			*node = balanceSubtree(*node);
 		}
 	}
-	//=========================================================================
+
 	inline void updateNode(panode_t node) {
 		if (!node)
 			return;
@@ -278,7 +252,7 @@ private:
 		if (node->right) 
 			node->right->parent = node;
 	}
-	//=========================================================================
+
 	inline void updateTwoNodesAfterRotate(panode_t a, panode_t b) {
 		a->calcChildCount();
 		b->calcChildCount();
@@ -315,20 +289,20 @@ private:
 		updateTwoNodesAfterRotate(a, b);
 		return b;
 	}
-	//=========================================================================
+
 	inline panode_t bigLeftRotate(panode_t a) {
 		panode_t b = a->right;
 		a->right = littleRightRotate(b);
 		return littleLeftRotate(a);
 	}
-	//=========================================================================
+
 	inline panode_t bigRightRotate(panode_t a) {
 		panode_t b = a->left;
 		a->left = littleLeftRotate(b);
 		return littleRightRotate(a);
 	}
-	//=========================================================================
-	panode_t* findSubstitution(panode_t& root, panode_t** parents,  int &N) {
+
+	panode_t* findSubstitution(panode_t& root, panode_t** parents,  size_t& N) {
 		ff_assert(root != NULL, "NULL passed to findSubstitution");
 
 		panode_t* pRetVal;
@@ -344,16 +318,16 @@ private:
 
 		return NULL;
 	}
-	//=========================================================================
+
 	panode_t* getOnlyOneChild(panode_t root) {
 		if (root && root->childCount == 1)
 			return root->left ?  &(root->left) : &(root->right);
 		return NULL;
 	}
-	//=========================================================================
-	panode_t* findLeftMostChild(panode_t& root, panode_t** parents,  int &N) {
+
+	panode_t* findLeftMostChild(panode_t& root, panode_t** parents,  size_t& N) {
 		panode_t* node = &root;
-		int i = 0;
+		size_t i = 0;
 		while ((*node)->left) {
 			parents[i++] = node;
 			node = &((*node)->left);
@@ -363,10 +337,10 @@ private:
 
 		return node;
 	}
-	//=========================================================================
-	panode_t* findRightMostChild(panode_t& root, panode_t** parents,  int &N) {
+
+	panode_t* findRightMostChild(panode_t& root, panode_t** parents,  size_t& N) {
 		panode_t* node = &root;
-		int i = 0;
+		size_t i = 0;
 		while ((*node)->right) {
 			parents[i++] = node;
 			node = &((*node)->right);
@@ -376,11 +350,11 @@ private:
 
 		return node;
 	}
-	//=========================================================================
-	panode_t* findNodePtrPtr(panode_t* root, const TKey& key, panode_t** parents, int& N) {
+
+	panode_t* findNodePtrPtr(panode_t* root, const TKey& key, panode_t** parents, size_t& N) {
 		panode_t* node = root;
 
-		int i = 0;
+		size_t i = 0;
 		while(*node && (*node)->key != key) {
 			parents[i++] = node;
 			node = pchildOnPredicate(*node, key);
@@ -388,7 +362,7 @@ private:
 		N = i;
 		return node;
 	}
-	//=========================================================================
+
 	const TVal* findNodeInt(const panode_t root, const TKey& key) const {
 		panode_t current = root;
 
@@ -397,15 +371,15 @@ private:
 		
 		return current ? &(current->val) : NULL;
 	}
-	//=========================================================================
+
 	inline const panode_t& childOnPredicate(const panode_t root, const TKey& key) const {
 		return (m_predicate(root->key, key)) ? root->right : root->left;
 	}
-	//=========================================================================
+
 	inline panode_t* pchildOnPredicate(const panode_t root, const TKey& key) {
 		return (m_predicate(root->key, key)) ? &(root->right) : &(root->left);
 	}
-	//=========================================================================
+
 	inline panode_t balanceSubtree(panode_t root) {
 		updateNode(root->left);
 		updateNode(root->right);
@@ -428,22 +402,39 @@ private:
 		}
 		return root;
 	}
-	//=========================================================================
-	// alloc/dealloc
-	//=========================================================================
+
 	inline void dealloc(panode_t node) {
 		if(node)
 			m_allocator.deallocate(node, 1);
 		node = NULL;
 	}
-	//=========================================================================
+
 	inline panode_t alloc(const TKey& key, const TVal& val, panode_t parent) {
 		panode_t ptr = m_allocator.allocate(1,0);
 		m_allocator.construct(ptr, anode_t(key, val, parent));
 		return ptr;
 	}
 
+	ff_amap(const ff_amap& _amap) 
+	{/*Not available*/}
+	const ff_amap& operator=(const ff_amap& _amap)
+	{/*Not available*/}
+
+
+	panode_t m_root;
+	TPred	 m_predicate;
+	TAlloc	 m_allocator;
+	size_t   m_size;
+	enum {StackSize = 4096};
+	static const size_t UNDER_ZERO = (size_t)(0-1);
+
 #ifdef _DEBUG
+
+	// Friend class for testing private member functions
+	friend class FF_AVLTree_test;
+	// Friend class for creating dot files
+	friend class FF_AVL_GraphCreator;
+
 //=========================================================================
 // Next methods may be used only for tests.
 // They are VERY inefficient and ugly, don't look at them
@@ -478,11 +469,9 @@ private:
 			return true;
 		int ileft = getNumElements(root->left);
 		int iright = getNumElements(root->right);
-		if (ileft + iright  == root->childCount) {
-			if (checkChildCounts(root->left) && checkChildCounts(root->right)) {
+		if (ileft + iright  == root->childCount)
+			if (checkChildCounts(root->left) && checkChildCounts(root->right))
 				return true;
-			}
-		} 
 		return false;
 	}
 
@@ -520,6 +509,7 @@ public:
 	//=========================================================================
 	bool checkChildren() 
 	{ return checkChildCounts(m_root); }
+
 #endif//_DEBUG
 };
-#endif
+#endif//__FF_AVLTREE__
