@@ -1,6 +1,6 @@
-ff_avl_tree
+Data structures
 ===========
 
-Dictionary implementation using AVL tree.
+Implementations of various data structures.
 
-![Alt desc](https://raw.github.com/nikitoz/ff_avl_tree/master/graph.png)
+![AVL](https://raw.github.com/nikitoz/data-structures/master/graph.png)
