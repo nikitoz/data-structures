@@ -1,5 +1,7 @@
 #include <cstdio>
 #include "bheap.hpp"
+#include <complex>
+#include <cmath>
 
 namespace { namespace ff {
 	template <typename T>
@@ -28,9 +30,9 @@ public:
 	void insert(TypeChar* str, TypeData* data) {
 		node* c  = &root;
 		for (TypeChar* s = str; *s; ++s) {
-			int i = chrToIdx(*s);
+			int i = chrToIdx(tolower(*s));
 			if (!c->next[i])
-				c->next[i] = new node(*s, NULL);
+				c->next[i] = new node(tolower(*s), NULL);
 			c = c->next[i];
 		}
 		c->d = data;
@@ -58,7 +60,7 @@ public:
 	}
 
 	TypeChar* spellcheck(TypeChar* word, TypeChar* result) {
-		spellcheck_i(word, &root, 3, 3, result);
+		spellcheck_i(word, &root, 5, 5, result);
 		return result;
 	}
 
@@ -104,7 +106,7 @@ public:
 
 	struct checkst_pred {
 		bool operator()(const checkst& a1, const checkst& a2) const
-		{ return a1.insertions + a1.deletions > a2.insertions + a2.deletions; }
+		{ return a1.insertions + a1.deletions + abs((float)(strlen(a1.word) - strlen(a1.ch))) > a2.insertions + a2.deletions + abs((float)(strlen(a1.word) - strlen(a1.ch))); }
 	};
 
 
@@ -187,6 +189,7 @@ public:
 			printf("ororo");
 		}
 		memcpy(result, chk.ch, chk.index+1);
+		result[chk.index+1] = '\0';
 
 		return (bool)b.getSize() ^ (bool)chk.word[0];
 	}
@@ -196,6 +199,7 @@ public:
 		fprintf(f, "DIGRAPH g {\n");
 		print_r(&root, 0, f);
 		fprintf(f, "};");
+		fclose(f);
 	}
 
 	void print_r(const node* a, int start, FILE* f) const {

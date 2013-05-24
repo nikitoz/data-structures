@@ -33,6 +33,7 @@ void test_spellchecker() {
 
 	t.insert("abc", a+1);
 	t.insert("ade", a+2);
+	//t.insert("I", a);
 	/*t.insert("hablot", a+3);
 	t.insert("aalort", a+4);
 	t.insert("ablote", a);*/
@@ -90,8 +91,38 @@ void test_spellchecker() {
 	memset(res, 0, 255);
 }
 
+
+void test_spellchecker1() {
+	FILE* f = fopen("D:\\words.txt", "rt");
+	LittleTrie<char, int> t;
+	char ch[256];
+	int i = 1;
+	/*while (!feof(f)) {
+		fscanf(f, "%s", ch);
+		if (strlen(ch) > 1)
+			t.insert(ch, &i);
+	}*/
+	for (int i = 0; i < 20; ++i)
+	{
+		fscanf(f, "%s", ch);
+		if (strlen(ch) > 1)
+			t.insert(ch, &i);
+	}
+
+	t.print();
+
+	char res[256] = {0};
+	while (true) {
+		scanf("%s", ch);
+		t.spellcheck(ch, res);
+		printf("maybe %s ?\n", res);
+
+	}
+}
+
 int main() {
 	test_spellchecker();
+	test_spellchecker1();
 	char c;
 	scanf("%c", &c);
 	return 0;
