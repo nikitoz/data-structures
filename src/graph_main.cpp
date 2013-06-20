@@ -6,6 +6,12 @@
 #include <math.h>
 #include "graph.hpp"
 
+template <typename T>
+struct all_true {
+	bool operator()(const T&) {
+		return true;
+	}
+};
 bool testGraph() {
 	ff_digraph<int> graphy;//(10);
 
@@ -31,8 +37,10 @@ bool testGraph() {
 // 	graphy.addConnection(6, 5, 1);
 // 	graphy.addConnection(5, 3, 1);
 
-	size_t s = ff_shortest_path_Astar<ff_digraph<int> >()( graphy, 0, 4 );
+	size_t s = ff_shortest_path_astar<ff_digraph<int> >()( graphy, 0, 4 );
 	std::cout << s << std::endl;
+
+	ff_bfs<ff_digraph<int>, all_true<ff_digraph<int>::node_t> >()(graphy, 0);
 
 	return true;
 }

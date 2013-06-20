@@ -14,123 +14,62 @@
 namespace {
 	template<typename TKey, typename TVal>
 	struct anode {
-		anode()
+		anode(TKey k = TKey(), TVal v = TVal(), anode* p = NULL) 
 			: balance(0)
 			, right(NULL)
 			, left(NULL)
 			, childCount(0)
-			, parent(NULL) {}
-
-		anode(TKey _k, TVal _v, anode* _parent) 
-			: balance(0)
-			, right(NULL)
-			, left(NULL)
-			, childCount(0)
-		{ key = _k; val = _v; parent = _parent; }
-
-		anode(TKey _k, TVal _v) // Deprecated
-			: balance(0)
-			, right(NULL)
-			, left(NULL)
-			, childCount(0)
-			, parent(NULL)
-		{ key = _k; val = _v; }
+			, parent(p)
+			, key(k)
+			, val(v)
+		{ }
 
 		anode(const anode& a)
 		{ (*this) = a; }
 
-		const anode& operator=(const anode& _node) {
-			this->key	  = _node.key; 
-			this->val	  = _node.val; 
-			this->balance = _node.balance;
-			this->left    = _node.left;
-			this->right   = _node.right;
-			this->parent  = _node.parent;
-			return _node;
+		const anode& operator=(const anode& node) {
+			key	  = node.key; 
+			val	  = node.val; 
+			balance = node.balance;
+			left    = node.left;
+			right   = node.right;
+			parent  = node.parent;
+			return node;
 		}
 
 		void calcBalance()
-		{ balance = ((left == NULL)? 0 : left->childCount+1) - ((right == NULL)? 0 : right->childCount+1); }
+		{ balance = (left == NULL ? 0 : left->childCount+1) - (right == NULL ? 0 : right->childCount+1); }
 
 		void calcChildCount()
-		{ childCount = ((left == NULL)? 0 : left->childCount + 1) + ((right == NULL)? 0 : right->childCount + 1); }
+		{ childCount = (left == NULL ? 0 : left->childCount + 1) + (right == NULL ? 0 : right->childCount + 1); }
 
 		TKey key;
 		TVal val;
 		int balance;
-		size_t childCount;
+		unsigned int childCount;
 
 		anode * parent;
 		anode * left;
 		anode * right;
 	};
-
-	static void ff_assert(bool expression, const char* text = NULL) {
-#ifdef _DEBUG
-		if (! expression )
-			throw std::exception(text);
-#endif
-	}
 }
-#pragma warning(default:4267)
 //=========================================================================
 // Map implementation based on AVL Tree
 //=========================================================================
 template <typename TKey
-, typename TVal
-, typename TPred = std::less<TKey>
-, typename TAlloc = std::allocator<anode<TKey, TVal> > >
+		, typename TVal
+		, typename TPred = std::less<TKey>
+		, typename TAlloc = std::allocator<anode<TKey, TVal> > 
+		 >
 class ff_amap {
 public :
-	typedef anode<TKey, TVal>	  anode_t;
-	typedef anode<TKey, TVal>*	  panode_t;
+	typedef anode<TKey, TVal> anode_t;
+	typedef anode<TKey, TVal>*panode_t;
 
 	ff_amap()
 		: m_root(NULL)
-		, m_size() {}
-
-
-	bool erase(const TKey& key) {
-		if(!m_root)
-			return false;
-
-		panode_t* stackPathForKey[StackSize] = {0};
-		size_t N1 = 0;
-		panode_t* nodeToRemove = findNodePtrPtr(&m_root, key, stackPathForKey, N1);
-
-		if (!nodeToRemove || !*nodeToRemove)
-			return false;
-
-		panode_t* stackPathForSub[StackSize];
-		size_t N2 = 0;
-		panode_t* ppSubstitution = findSubstitution(*nodeToRemove, stackPathForSub, N2);
-		panode_t  pSubstitution = ppSubstitution ? *ppSubstitution : NULL;
-		panode_t pSubstitutionChild = pSubstitution ? pSubstitution->left ? pSubstitution->left : pSubstitution->right : NULL;
-		panode_t pDeleteMe = *nodeToRemove;
-
-		if (ppSubstitution) {
-			*ppSubstitution = pSubstitutionChild;
-			*nodeToRemove   = pSubstitution;
-			pSubstitution->left  = pDeleteMe->left  != pSubstitution ? pDeleteMe->left  : NULL;
-			pSubstitution->right = pDeleteMe->right != pSubstitution ? pDeleteMe->right : NULL;
-			pSubstitution->parent = pDeleteMe->parent;
-
-			updateNode(pSubstitution->left);
-			updateNode(pSubstitution->right);
-			updateNode(pSubstitution);
-			
-		} else {
-			*nodeToRemove = NULL;
-		}
-
-		for (size_t i = N2-1; i != UNDER_ZERO; --i)
-			updateNode(*(stackPathForSub[i]));
-
-		balanceStack(stackPathForKey, N1);
-		dealloc(pDeleteMe);
-		m_size--;
-		return true;
-	}
+		, m_size()
+	{ }
 
 	const TVal* nodePtr(const TKey& key) const 
 	{ return findNodeInt(m_root, key); }
@@ -154,6 +93,47 @@ public :
 
 	size_t count() const
 	{ return m_size; }
+
+	bool erase(const TKey& key) {
+		if(!m_root)
+			return false;
+
+		panode_t* stackPathForKey[StackSize] = {0};
+		size_t N1 = 0;
+		panode_t* nodeToRemove = findNodePtrPtr(&m_root, key, stackPathForKey, N1);
+
+		if (!nodeToRemove || !*nodeToRemove)
+			return false;
+
+		panode_t* stackPathForSub[StackSize];
+		size_t N2 = 0;
+		panode_t* ppSubstitution = findSubstitution(*nodeToRemove, stackPathForSub, N2);
+		panode_t  pSubstitution      = ppSubstitution ? *ppSubstitution : NULL;
+		panode_t  pSubstitutionChild = pSubstitution  ?  pSubstitution->left ? pSubstitution->left : pSubstitution->right : NULL;
+		panode_t  pDeleteMe = *nodeToRemove;
+
+		if (ppSubstitution) {
+			*ppSubstitution = pSubstitutionChild;
+			*nodeToRemove   = pSubstitution;
+			pSubstitution->left   = pDeleteMe->left  != pSubstitution ? pDeleteMe->left  : NULL;
+			pSubstitution->right  = pDeleteMe->right != pSubstitution ? pDeleteMe->right : NULL;
+			pSubstitution->parent = pDeleteMe->parent;
+
+			updateNode(pSubstitution->left);
+			updateNode(pSubstitution->right);
+			updateNode(pSubstitution);
+
+		} else
+			*nodeToRemove = NULL;
+
+		for (size_t i = N2-1; i != UNDER_ZERO; --i)
+			updateNode(*(stackPathForSub[i]));
+
+		balanceStack(stackPathForKey, N1);
+		dealloc(pDeleteMe);
+		m_size--;
+		return true;
+	}
 
 	//=========================================================================
 	// Nested iterator class
@@ -186,19 +166,14 @@ public :
 				return *this;// end()
 
 			// if prev was left then visit this node
-			if (m_node->left == prev) {
+			if (m_node->left == prev)
 				return *this; // then go to right
-			}
 
 			// if prev was right then go up, until we're not in right subtree
-			if (m_node->right == prev) {
-				while(m_node && m_node->right == prev) {
-					prev = m_node;
-					m_node = m_node->parent;
-				}
-				return *this;
+			while(m_node && m_node->right == prev) {
+				prev = m_node;
+				m_node = m_node->parent;
 			}
-
 			return *this;
 		}
 
@@ -206,8 +181,8 @@ public :
 			// TODO : 
 		}
 
-		bool operator!=(const iterator& comp2) const 
-		{ return this->m_node != comp2.m_node; }
+		bool operator!=(const iterator& i) const 
+		{ return m_node != i.m_node; }
 
 		const panode_t operator->() const 
 		{ return m_node; }
@@ -303,8 +278,6 @@ private:
 	}
 
 	panode_t* findSubstitution(panode_t& root, panode_t** parents,  size_t& N) {
-		ff_assert(root != NULL, "NULL passed to findSubstitution");
-
 		panode_t* pRetVal;
 		pRetVal = getOnlyOneChild(root);
 		if (pRetVal)
