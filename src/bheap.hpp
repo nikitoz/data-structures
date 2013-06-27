@@ -1,25 +1,41 @@
 #ifndef __FF_BIHEAP__
 #define __FF_BIHEAP__
+
 #include <cstdlib>
 #include <xutility>
 #include <functional>
-//=========================================================================
-// Simple binary heap implementation [C++98]
-//=========================================================================
+
+#ifdef _MSC_VER
+	#pragma warning(disable: 4996)
+#endif
+
+namespace ff
+{
+
+/*
+	Simple binary heap implementation [C++98]
+*/
+
 template <typename T, typename Pred = std::greater<T> >
-class ff_bheap {
+class bheap
+{
 public:
-	T pop() {
+	T pop()
+	{
 		if (m_capacity*3/4 > m_size)
 			decreaseFourth();
 
-		T ret = m_d[0]; // do deep copy
-		m_d[0] = m_d[--m_size];
-		heapify(0);
+		T ret; // do deep copy
+		if (m_size) {
+			ret = m_d[0];
+			m_d[0] = m_d[--m_size];
+			heapify(0);
+		}
 		return ret;
 	}
 
-	void insert(const T& newValue) {
+	void insert(const T& newValue)
+	{
 		if (m_size == m_capacity)
 			increaseTwice();
 
@@ -27,6 +43,11 @@ public:
 		m_size++;
 		for (size_t i = parent(m_size-1); i != UNDER_ZERO; --i)
 			heapify(i);
+	}
+
+	bool empty() const
+	{
+		return m_size == 0;
 	}
 
 	const T* getArray() const
@@ -38,7 +59,8 @@ public:
 	const T& high() const
 	{ return m_d[0]; }
 
-	void setData(T* data, size_t size) {
+	void setData(T* data, size_t size)
+	{
 		if (size > m_capacity) {
 			delete[] m_d;
 			m_d = new T[size];
@@ -50,31 +72,35 @@ public:
 			heapify(i);
 	}
 
-	//=========================================================================
-	// Constructors/destructor operators
-	//=========================================================================
+	/*
+	    Constructors/destructor operators
+    */
 
-	ff_bheap(int size) {
+	bheap(int size)
+	{
 		m_d = NULL;
 		m_d = new T[size];
 		m_capacity = m_size = size;
 	}
 
-	ff_bheap() {
+	bheap()
+	{
 		m_d = NULL;
 		m_d = new T[2];
 		m_capacity = 2;
 		m_size = 0;
 	}
 
-	ff_bheap(const ff_bheap& _heap) {
+	bheap(const bheap& _heap)
+	{
 		m_capacity = m_size = _heap.getSize();
 		m_d = new T[m_size];
 		std::copy(_heap.m_d, _heap.m_d + _heap.m_size, m_d);
 		m_predicate = _heap.m_predicate;
 	}
 
-	const ff_bheap& operator=(const ff_bheap& _heap) {
+	const bheap& operator=(const bheap& _heap)
+	{
 		if (m_capacity < _heap.m_size) {
 			m_capacity = _heap.getSize();
 			delete []m_d;
@@ -85,7 +111,8 @@ public:
 		m_predicate = _heap.m_predicate;
 	}
 
-	virtual ~ff_bheap() {
+	virtual ~bheap()
+	{
 		delete[] m_d;
 		m_d = NULL;
 	}
@@ -107,7 +134,8 @@ private:
 	size_t rightChild(size_t me) const
 	{ return me*2+2; }
 
-	void heapify(size_t ind) {
+	void heapify(size_t ind)
+	{
 		size_t violationIndex = getViolationChild(ind);
 		if ( violationIndex != ind ) {
 			T tmp = m_d[ind];
@@ -117,7 +145,8 @@ private:
 		}
 	}
 	
-	void changeSize(size_t newSize) {
+	void changeSize(size_t newSize)
+	{
 		T* tmp = m_d;
 		m_d = new T[newSize];
 		m_capacity = newSize;
@@ -125,7 +154,8 @@ private:
 		delete[] tmp;
 	}
 
-	size_t getViolationChild(size_t ind) const {
+	size_t getViolationChild(size_t ind) const
+	{
 		size_t violationIndex = ind;
 		size_t leftChildIndex = leftChild(ind);
 		size_t rightChildIndex = rightChild(ind);
@@ -145,7 +175,8 @@ private:
 
 #ifdef _DEBUG
 public:
-	bool checkHeapProperty() const {
+	bool checkHeapProperty() const
+	{
 		for(size_t i = 0; i < m_size/2; ++i)
 			if (i != getViolationChild(i))
 				return false;
@@ -154,7 +185,8 @@ public:
 	}
 #endif //_DEBUG
 
-	static const size_t UNDER_ZERO = (size_t)(0-1);
+	static const size_t UNDER_ZERO = (size_t)(0) - size_t(1);
 
-}; //ff_bheap
+}; //bheap
+}  //ff
 #endif //__FF_BIHEAP__

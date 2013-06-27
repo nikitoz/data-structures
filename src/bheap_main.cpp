@@ -4,8 +4,9 @@
 // Test routines
 //=========================================================================
 
+using namespace ff;
 namespace
-{ typedef ff_bheap<int> IntHeap; }
+{ typedef bheap<int> IntHeap; }
 
 void printHeap(const IntHeap& bh) {
 	const int* out = bh.getArray();
@@ -21,7 +22,7 @@ bool testHeap() {
 	IntHeap bhh;
 
 	int k = 0;
-	for(int i = 0; i < 10001; ++i) {
+	for(int i = 0; i < 100; ++i) {
 		int r = rand();
 		bhh.insert(r);
 		bhh.checkHeapProperty();
@@ -41,7 +42,7 @@ bool testHeap() {
 	}
 	return true;
 }
-
+/*
 int main() {
 	if (!testHeap())
 		std::cout << "!!! Heap test failed !!!" << std::endl;
@@ -49,4 +50,4 @@ int main() {
 		std::cout << "Heap test success" << std::endl;
 	std::cin.get();
 	return 0;
-}
+}*/

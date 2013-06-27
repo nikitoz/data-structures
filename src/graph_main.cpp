@@ -6,6 +6,8 @@
 #include <math.h>
 #include "graph.hpp"
 
+using namespace ff;
+
 template <typename T>
 struct all_true {
 	bool operator()(const T&) {
@@ -13,22 +15,22 @@ struct all_true {
 	}
 };
 bool testGraph() {
-	ff_digraph<int> graphy;//(10);
+	digraph<int> graphy;//(10);
 
-	graphy.addNode(0);
-	graphy.addNode(1);
-	graphy.addNode(2);
-	graphy.addNode(3);
-	graphy.addNode(4);
-// 	graphy.addNode(5);
-// 	graphy.addNode(6);
-// 	graphy.addNode(7);
+	graphy.add(0);
+	graphy.add(1);
+	graphy.add(2);
+	graphy.add(3);
+	graphy.add(4);
+// 	graphy.add(5);
+// 	graphy.add(6);
+// 	graphy.add(7);
 
-	graphy.addConnection(0, 1, 1);
-	graphy.addConnection(1, 2, 2);
-	graphy.addConnection(1, 3, 1);
-	graphy.addConnection(2, 4, 1);
-	graphy.addConnection(3, 4, 1);
+	graphy.connect(0, 1, 1);
+	graphy.connect(1, 2, 2);
+	graphy.connect(1, 3, 1);
+	graphy.connect(2, 4, 1);
+	graphy.connect(3, 4, 1);
 // 	graphy.addConnection(4, 5, 2);
 // 	graphy.addConnection(5, 0, 3);
 // 	graphy.addConnection(2, 5, 2);
@@ -37,10 +39,13 @@ bool testGraph() {
 // 	graphy.addConnection(6, 5, 1);
 // 	graphy.addConnection(5, 3, 1);
 
-	size_t s = ff_shortest_path_astar<ff_digraph<int> >()( graphy, 0, 4 );
+	typedef digraph<int> Graph;
+
+	size_t s = shortest_path_astar< Graph, std::less<Graph::edge_t> >()( graphy, 0, 4 );
 	std::cout << s << std::endl;
 
-	ff_bfs<ff_digraph<int>, all_true<ff_digraph<int>::node_t> >()(graphy, 0);
+	bfs<Graph, all_true<Graph::node_t> >()(graphy, 0);
+	dfs<Graph, all_true<Graph::node_t> >()(graphy, 0);
 
 	return true;
 }
