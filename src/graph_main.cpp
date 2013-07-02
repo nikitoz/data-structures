@@ -3,6 +3,7 @@
 #include <string>
 #include <queue>
 #include <exception>
+#include <vector>
 #include <math.h>
 #include "graph.hpp"
 
@@ -50,13 +51,47 @@ bool testGraph() {
 	return true;
 }
 
-int main() {
+void courseraTest(const char * path) {
+	FILE*f=fopen(path, "rt");
+	int N, E;
+	fscanf(f, "%d%d", &N, &E);
+	typedef digraph<int> Graph;
+	Graph graph;
+	for (int i = 0; i < N; ++i)
+		graph.add(i);
+	for (int i = 0; i < E; ++i) {
+		int a, b;
+		fscanf(f, "%d%d", &a, &b);
+		graph.connect(a, b, 1);
+		graph.connect(b, a, 1);
+	}
+
+	//size_t s = graph.cost(0, N-1);
+	coloring_result c = graph.colours();
+	std::vector<int> nc = c.nodes_colors();
+
+	printf("%u %d\n", c.ccount(), (int)c.optimal());
+	for (std::vector<int>::const_iterator it = nc.begin(); it != nc.end(); ++it)
+	{
+		printf("%d ", *it);
+	}
+// 	try {
+// 		graph.test_CheckColoring(c);
+// 	} catch(std::exception& e) {
+// 		printf(e.what());
+// 	}
+}
+
+int main(int argc, char** argv) {
 	/*if (!testHeap())
 		std::cout << "!!! Heap test failed !!!" << std::endl;*/
 
-	if (!testGraph())
-		std::cout << "!!! Graph test failed !!!" << std::endl;
-
-	std::cin.get();
+// 	if (!testGraph())
+// 		std::cout << "!!! Graph test failed !!!" << std::endl;
+// 	for (int i = 0 ; i < argc; ++i) {
+// 		printf(argv[i]);
+// 	}
+	courseraTest("tmp.data");
+	//std::cin.get();
 	return 0;
 }
