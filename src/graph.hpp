@@ -6,6 +6,7 @@
 #include <map>
 #include <functional>
 #include <stack>
+#include <set>
 
 namespace ff { namespace {
 
@@ -52,8 +53,8 @@ struct gnode
 {
 	typedef gnode<T>                  node_t;
 	typedef diedge<node_t>            edge_t;
-	typedef std::map<size_t, edge_t > edges_t;
 	typedef typename size_t			  index_t;
+	typedef std::map<index_t, edge_t> edges_t;
 
 	gnode(T node, size_t index) 
 		: _data(node), _index(index)
@@ -84,7 +85,7 @@ struct graph_search
 {
 	typename TG::node_t operator()( const TG& g, size_t src)
 	{
-		std::vector<bool> visited(g.count(), false);
+		std::vector<bool> visited(g.ncount(), false);
 		TP is_destination;
 		TC container;
 		container.push(src);
@@ -208,8 +209,8 @@ struct shortest_path_astar
 	size_t operator()( const TG& g, size_t src, size_t dst ) const
 	{
 		if (src == dst) return 0;
-		std::vector<size_t> cost(g.count(), INFINITY);
-		std::vector<size_t> from(g.count(), INFINITY);
+		std::vector<size_t> cost(g.ncount(), INFINITY);
+		std::vector<size_t> from(g.ncount(), INFINITY);
 		cost[src] = 0;
 		bheap<TG::edge_t, TEP> bheap;
 		size_t current = src;
@@ -231,6 +232,179 @@ struct shortest_path_astar
 		return cost[dst];
 	}
 };
+
+struct coloring_result
+{
+	coloring_result(std::vector<int> node_colors, size_t color_count, bool optimal, std::vector<int> more_optimal = std::vector<int>())
+		: _is_optimal(optimal), _node_colors(node_colors), _color_count(color_count), _more_optimal(more_optimal), _is_valid(true)
+	{ }
+
+	coloring_result()
+		: _is_valid(false)
+	{ }
+
+	size_t ccount() const
+	{ return _color_count; }
+
+	std::vector<int> nodes_colors() const
+	{ return _node_colors; }
+
+	bool optimal() const
+	{ return _is_optimal; }
+
+	bool valid() const
+	{ return _is_valid; }
+
+private:
+	std::vector<int> _node_colors;
+	size_t _color_count;
+	bool _is_optimal;
+	std::vector<int> _more_optimal;
+	bool _is_valid;
+};
+
+/*
+	Functional object for finding graph coloring, using branch and bound approach
+	Quick and dirty implementation
+*/
+
+template 
+<
+      typename TG
+>
+struct coloring_b_and_b
+{
+	coloring_b_and_b( )
+	{ }
+
+	coloring_result operator()( const TG& g ) const
+	{
+		_possible_colours = make_possible_colours(g.ncount());
+		ints_t colours(g.ncount(), NO_COLOUR);
+
+		if (g.ncount() == 0)
+			return coloring_result();
+		
+		int colored = 0;
+		eSolution solution_status = solve_r(g, 0, colours, colored);
+		switch (solution_status)
+		{
+			case Feasible :
+			{
+				ints_t opt_colours(g.ncount(), NO_COLOUR);
+				int    opt_colored = 0;
+				size_t unique_colours = distinct_colours(colours);
+				_possible_colours = make_possible_colours(unique_colours - 1);
+				eSolution solution_status2 = solve_r(g, 0, opt_colours, opt_colored);
+				return coloring_result(colours, unique_colours, Infeasible == solution_status2, opt_colours);
+			}
+			case Infeasible :
+				throw std::runtime_error("Unexpected result, should be possible to find solution");
+
+			case Maybe:
+				/*In this case we do have more than 1 connected component, this will be handled some time in the future*/
+				break;
+		}
+
+		return coloring_result();
+	}
+
+private:
+
+	typedef std::vector<int> ints_t;
+	typedef typename TG::index_t index_t;
+	typedef typename std::vector<index_t> indices_t;
+	static const int NO_COLOUR = -1;
+
+	enum eSolution {Feasible, Infeasible, Maybe};
+
+	/*
+		Simple recursive B&B algo. To be rewritten with iterations.
+	*/
+
+	eSolution solve_r(const TG& g, const index_t index, ints_t& colours, int& colored) const
+	{
+		std::set<int> possible_colours(_possible_colours);
+		std::vector<index_t> uncolored_vertices;
+
+		for (typename TG::edges_t::const_iterator it = g.edges(index).begin();
+			it != g.edges(index).end() && !possible_colours.empty(); ++it)
+		{
+			if (colours[it->second.to()] == NO_COLOUR)
+				uncolored_vertices.push_back(it->second.to());
+			else if (colours[index] == NO_COLOUR)
+				possible_colours.erase(colours[it->second.to()]);
+		}
+		
+		if (possible_colours.empty())
+			return Infeasible; // Upper bound is exceeded
+
+		std::set<int>::const_iterator current_color_to_check = possible_colours.begin();
+		colours[index] = *current_color_to_check;
+		colored ++;
+		
+		if (colored == g.ncount())
+			return Feasible; // Everything is colored
+
+		ints_t init_colours = colours;
+		int    init_colored = colored;
+
+		indices_t::iterator it = uncolored_vertices.begin();
+		while (it != uncolored_vertices.end())
+		{
+			if (colours[*it] != NO_COLOUR)
+				continue;
+
+			eSolution isSolved = solve_r(g, *it, colours, colored);
+			switch (isSolved)
+			{
+				case Feasible  : return Feasible;
+				case Maybe : ++it; break;
+				case Infeasible :
+					{
+						if (++current_color_to_check == possible_colours.end())
+							return Infeasible;
+						init_colours[index] = *current_color_to_check;
+						colours = init_colours;
+						it = uncolored_vertices.begin();
+						colored = init_colored;
+					} break;
+			}
+		}
+		return Maybe;
+	}
+
+	size_t distinct_colours(std::vector<int>& colours) const {
+		std::set<int> cols;
+		for (std::vector<int>::const_iterator it = colours.begin(); it != colours.end(); ++it)
+			cols.insert(*it);
+		return cols.size();
+	}
+
+	struct bounder
+	{
+		bounder()
+			: _lbound(-1)
+		{ }
+
+		int operator()() const
+		{
+			++_lbound;
+			return _lbound;
+		}
+	private:
+		mutable int _lbound;
+	};
+
+	static std::set<int> make_possible_colours(size_t ubound)
+	{
+		std::set<int> possible_colours;
+		std::generate_n(std::inserter(possible_colours, possible_colours.begin()), ubound, bounder());
+		return possible_colours; 
+	}
+
+	mutable std::set<int> _possible_colours;
+}; // coloring_b_and_b
 
 /*
 	Digraph class
@@ -268,7 +442,13 @@ public:
 			_nodes[from]._edges[to] = edge_t(&_nodes[from], &_nodes[to], cost);
 	}
 
-	size_t count() const
+	size_t cost(size_t from, size_t to) const
+	{ return shortest_path_astar< digraph<T>, std::less<edge_t> >()(*this, from, to); }
+
+	coloring_result colours() const
+	{ return coloring_b_and_b< digraph<T> >()( *this );	}
+
+	size_t ncount() const
 	{ return _nodes.size();	}
 
 	node_t node(size_t index) const
@@ -288,6 +468,23 @@ public:
 
 private:
 	nodes_t _nodes;
+
+public:
+
+	/*
+		Testing helper stuff
+	*/
+
+#ifdef _DEBUG
+	bool test_CheckColoring(coloring_result& cr) const
+	{
+		std::vector<int> node_colors = cr.nodes_colors();
+		for ( nodes_t::const_iterator it  = _nodes.begin(); it != _nodes.end(); ++it)
+			for (edges_t::const_iterator ie = it->_edges.begin(); ie != it->_edges.end(); ++ie)
+				if (node_colors[ie->second.to()] == node_colors[ie->second.from()])
+					throw std::exception("Incorrect coloring");
+	}
+#endif // #ifdef _DEBUG
 };// digraph
 } // ff
 #endif // ___FF_GRAPH__
