@@ -82,6 +82,15 @@ void courseraTest(const char * path) {
 // 	}
 }
 
+void descartesLoadTest(const char* path)
+{
+	graph graph;
+	std::ifstream input_stream(path);
+	ff::descartes_graph_builder<tgraph, double> graph_builder;
+	graph_builder(graph, input_stream);
+	graph.ncount();
+}
+
 int main(int argc, char** argv) {
 	/*if (!testHeap())
 		std::cout << "!!! Heap test failed !!!" << std::endl;*/
@@ -91,7 +100,8 @@ int main(int argc, char** argv) {
 // 	for (int i = 0 ; i < argc; ++i) {
 // 		printf(argv[i]);
 // 	}
-	courseraTest("tmp.data");
+	descartesLoadTest("d:/data/desc.txt");
+	//courseraTest("tmp.data");
 	//std::cin.get();
 	return 0;
 }

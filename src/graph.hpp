@@ -67,6 +67,9 @@ struct gnode
 	bool bad() const
 	{ return _index == INFINITY; }
 
+	size_t ecount() const
+	{ return _edges.size(); }
+
 	index_t _index;
 	T	    _data;
 	edges_t _edges; // out from this node
@@ -92,7 +95,7 @@ struct graph_search
 		visited[src] = true;
 		do
 		{
-			size_t current = container.top();container.pop();
+			size_t current = container.top(); container.pop();
 
 			if (is_destination(g.node(current)))
 				return g.node(current);
@@ -264,8 +267,45 @@ private:
 };
 
 /*
+	Descartes graph builder
+*/
+
+template
+<
+	  typename TG
+	, typename coord
+>
+struct descartes_graph_builder
+{
+	typedef typename TG::index_t index_t;
+
+	void operator()(TG& g, std::istream& input_stream) const
+	{
+		index_t index = 0;
+		coord xs[];
+		coord ys[];
+		while (input_stream.good())
+		{
+			input_stream >> xs[index] >> ys[index];
+			g.add(index++);
+		}
+
+		for (size_t i = 0; i != index; ++i)
+			for (size_t j = i + 1; j != index; ++j)
+				g.connect(i, j, length(xs[i], ys[i], xs[j], ys[j]));
+	}
+
+private:
+
+	coord length(coord x1, coord y1, coord x2, coord y2) const
+	{
+		return static_cast<coord>(sqrt( (double)pow((double)x1-x2, 2), (double)pow((double)y1-y2, 2) ));
+	}
+};
+
+/*
 	Functional object for finding graph coloring, using branch and bound approach
-	Quick and dirty implementation
+	Quick and dirty implementation. Abandoned.
 */
 
 template 
@@ -279,14 +319,31 @@ struct coloring_b_and_b
 
 	coloring_result operator()( const TG& g ) const
 	{
-		_possible_colours = make_possible_colours(g.ncount());
-		ints_t colours(g.ncount(), NO_COLOUR);
-
 		if (g.ncount() == 0)
 			return coloring_result();
-		
+
+		size_t init_ubound = chromtic_number_estimation_not_so_pessimistic(g);
+		size_t ubound = chromtic_number_estimation_not_so_pessimistic(g);
+		ints_t colours(g.ncount(), NO_COLOUR);
 		int colored = 0;
-		eSolution solution_status = solve_r(g, 0, colours, colored);
+		eSolution solution_status = Infeasible;
+
+		size_t opt_bound = 7;//ubound/2;
+		do {
+			ints_t opt_colours(g.ncount(), NO_COLOUR);
+			int    opt_colored = 0;
+
+			_possible_colours = make_possible_colours(opt_bound);
+			solution_status = solve_r(g, 0, opt_colours, opt_colored);
+			if (solution_status == Feasible)
+			{
+				colours = opt_colours;
+				colored = opt_colored;
+				ubound  = opt_bound;
+			}
+			opt_bound = distinct_colours(colours) - 1;
+		} while (false);
+
 		switch (solution_status)
 		{
 			case Feasible :
@@ -335,6 +392,8 @@ private:
 			else if (colours[index] == NO_COLOUR)
 				possible_colours.erase(colours[it->second.to()]);
 		}
+
+		std::sort(uncolored_vertices.begin(), uncolored_vertices.end(), node_sort_pred(g));
 		
 		if (possible_colours.empty())
 			return Infeasible; // Upper bound is exceeded
@@ -346,40 +405,91 @@ private:
 		if (colored == g.ncount())
 			return Feasible; // Everything is colored
 
+// 		ints_t init_colours = colours;
+// 		int    init_colored = colored; 
+
+		for (indices_t::iterator it = uncolored_vertices.begin(); it != uncolored_vertices.end(); ++it) {
+			if (colours[*it] != NO_COLOUR)
+			{
+				uncolored_vertices.erase(it);
+			}
+		}
+
 		ints_t init_colours = colours;
 		int    init_colored = colored;
 
 		indices_t::iterator it = uncolored_vertices.begin();
 		while (it != uncolored_vertices.end())
 		{
-			if (colours[*it] != NO_COLOUR)
-				continue;
+// 			if (colours[*it] != NO_COLOUR)
+// 			{
+// 				++it;
+// 				continue;
+// 			}
 
-			eSolution isSolved = solve_r(g, *it, colours, colored);
+			ints_t init_colours = colours;
+			int    init_colored = colored;
+			eSolution isSolved = solve_r(g, *it, colours, colored );
 			switch (isSolved)
 			{
 				case Feasible  : return Feasible;
-				case Maybe : ++it; break;
+				case Maybe : ++it;
+					init_colours = colours;
+					init_colored = colored;
+					break;
 				case Infeasible :
 					{
 						if (++current_color_to_check == possible_colours.end())
 							return Infeasible;
+
 						init_colours[index] = *current_color_to_check;
 						colours = init_colours;
-						it = uncolored_vertices.begin();
 						colored = init_colored;
+						//it = uncolored_vertices.begin();
+						//colored = init_colored;
+						//return Infeasible;
 					} break;
 			}
 		}
 		return Maybe;
 	}
 
-	size_t distinct_colours(std::vector<int>& colours) const {
+	size_t distinct_colours(std::vector<int>& colours) const
+	{
 		std::set<int> cols;
 		for (std::vector<int>::const_iterator it = colours.begin(); it != colours.end(); ++it)
 			cols.insert(*it);
 		return cols.size();
 	}
+
+	size_t chromtic_number_estimation_pessimistic(const TG& g) const
+	{
+		size_t max_num = 0;
+		for ( TG::nodes_t::const_iterator it  = g.nodes().begin(); it != g.nodes().end(); ++it)
+		{
+			size_t pretendent = it->_edges.size();
+			max_num = max_num < pretendent ? pretendent : max_num;
+		}
+		return max_num;
+	}
+
+	size_t chromtic_number_estimation_not_so_pessimistic(const TG& g) const
+	{
+		size_t sum = 0;
+		for ( TG::nodes_t::const_iterator it  = g.nodes().begin(); it != g.nodes().end(); ++it)
+			sum += it->_edges.size();
+		return sum/g.ncount();
+	}
+
+	struct node_sort_pred
+	{
+		node_sort_pred(const TG& g) : _g(g) {}
+
+		bool operator()(typename TG::index_t a1, typename TG::index_t a2) const
+		{ return _g.node(a1).ecount() > _g.node(a2).ecount(); }
+
+		const TG& _g;
+	};
 
 	struct bounder
 	{
@@ -407,12 +517,50 @@ private:
 }; // coloring_b_and_b
 
 /*
+	TSP solver. Hamiltonian cycle
+*/
+
+template
+<
+	typename TG
+>
+struct tsp
+{
+	typedef typename TG::index_t index_t;
+
+	std::vector<index_t> operator()(const TG& g) const
+	{
+		
+	}
+};
+
+/*
+	Undirected graph class
+*/
+
+template
+<
+	  typename TNode = int // Some associated with node data
+	, typename TLength = size_t // edge length type
+>
+struct graph : public digraph<T, TLength>
+{
+	void connect(size_t from, size_t to, T cost)
+	{
+		digraph<TNode, TLength>::connect(from, to, cost);
+		digraph<TNode, TLength>::connect(to, from, cost);
+	}
+};
+
+
+/*
 	Digraph class
 */
 
 template
 <
-	typename T = int // Some associated with node data
+	  typename TNode = int // Some associated with node data
+	, typename TLength = size_t // edge length type
 >
 class digraph
 {
