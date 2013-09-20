@@ -5,7 +5,7 @@
 #include <exception>
 #include <vector>
 #include <math.h>
-#include "graph.hpp"
+#include "../src/graph.hpp"
 
 using namespace ff;
 

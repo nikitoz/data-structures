@@ -11,7 +11,7 @@
 #include <functional>
 #include <cmath>
 #include <memory.h>
-#include "trie.hpp"
+#include "../src/trie.hpp"
 #include <iostream>
 
 #define eps 1e-9

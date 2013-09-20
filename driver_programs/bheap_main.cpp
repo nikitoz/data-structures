@@ -1,4 +1,4 @@
-#include "bheap.hpp"
+#include "../src/bheap.hpp"
 #include <iostream>
 //=========================================================================
 // Test routines

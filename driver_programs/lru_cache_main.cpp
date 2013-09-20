@@ -1,4 +1,4 @@
-#include "lru_cache.hpp"
+#include "../src/lru_cache.hpp"
 #include <iostream>
 
 void  ffverify(bool b, char* ch = 0) {

@@ -1,4 +1,4 @@
-#include "avl.hpp"
+#include "../src/avl.hpp"
 #include <iostream>
 #include <map>
 #include <ctime>

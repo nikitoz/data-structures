@@ -2,7 +2,7 @@
 //
 
 #include "stdafx.h"
-#include "rle_cache.hpp"
+#include "../src/rle_cache.hpp"
 #include <iostream>
 
 bool test_cache()

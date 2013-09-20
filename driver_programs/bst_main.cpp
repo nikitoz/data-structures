@@ -16,7 +16,7 @@
 #include <stdlib.h>
 #include <list>
 #include <stack>
-#include "bst.hpp"
+#include "../src/bst.hpp"
 
 int main() {
 	typedef ff::bst<int, std::less<int> > bst_t;
