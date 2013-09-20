@@ -1,3 +1,5 @@
+#ifndef __FF__TRIE__
+#define __FF_TRIE__
 #include <exception>
 #include <stack>
 
@@ -165,3 +167,4 @@ public:
 #endif // _DEBUG
 };     // ff::trie
 }      // ff
+#endif // __FF_TRIE__
