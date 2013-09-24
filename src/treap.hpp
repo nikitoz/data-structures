@@ -2,6 +2,11 @@
 #define __FF__TREAP__
 #include <functional>
 
+/*
+	Set implementation, using treap
+	Mostly recursive
+*/
+
 namespace ff {
 template
 <
@@ -12,39 +17,14 @@ template
 >
 class treap
 {
-	template 
-	<
-		  typename TT  = TTree
-		, typename TH  = THeap
-	>
-	struct node
-	{
-		TT td_;
-		TH hd_;
-		node<TT, TH>* left_;
-		node<TT, TH>* right_;
-
-		node(const TTree& td, const THeap& hd, node* left = 0, node* right = 0)
-			: td_(td)
-			, hd_(hd)
-			, left_ (left)
-			, right_(right)
-		{ }
-	};
-
-	typedef node<TTree, THeap>  node_t;
-	node_t* root_;
-
-	TTreePred tree_pred_;
-	THeapPred heap_pred_;
-
 public:
 	treap()
-		: root_(0)
+		: root_ (0)
+		, count_(0)
 	{ }
 
-	void insert(const TTree& td, const THeap& hd) {
-		z_insert(root_, td, hd);
+	~treap() {
+		clear_r();
 	}
 
 	void insert_r(const TTree& td, const THeap& hd) {
@@ -55,22 +35,21 @@ public:
 		root_ = z_erase_r(root_, td);
 	}
 
+	bool contains_t(const TTree& td) const {
+		return z_find_r(root_, td) != 0;
+	}
+
+	size_t count() const {
+		return count_;
+	}
+
+	void clear_r() {
+		z_clear_r(root_);
+		root_ = 0;
+	}
+
 private:
 	typedef node_t* link;
-
-	void z_insert(link& root, const TTree& td, const THeap& hd) {
-		if (0 == root) {
-			root = new node_t(td, hd);
-			return;
-		}
-		link r = root;
-		link p = root;
-		while (r) {
-			p = r;
-			r = tree_pred_(td, r->td_) ? r->left_ : r->right_;
-		}
-		//r = 
-	}
 
 	link z_erase_r(link r, const TTree& td) {
 		if (0 == r)
@@ -78,29 +57,45 @@ private:
 		if (td == r->td_) {
 			link ret = 0;
 			if (0 == r->left_)
-				ret = r->left_;
-			else if (0 == r->right_)
 				ret = r->right_;
+			else if (0 == r->right_)
+				ret = r->left_;
 			else {
-				ret = disconnect_smallest(r->right_);
+				ret = z_disconnect_smallest(r->right_);
 				ret->left_  = r->left_;
 				ret->right_ = r->right_;
 				heapify(ret);
 			}
+			--count_;
 			delete r;
 			r = ret;
+		} else if (tree_pred_(td, r->td_)) {
+			r->left_  = z_erase_r(r->left_ , td);
 		} else {
-			if (tree_pred_(td, r->td_))
-				r->left_  = z_erase_r(r->left_ , td);
-			else
-				r->right_ = z_erase_r(r->right_, td);
+			r->right_ = z_erase_r(r->right_, td);
 		}
 		return r;
 	}
 
-	link disconnect_smallest(link& root) {
+	link z_find_r(link r, const TTree& td) const {
+		if (0 == r)
+			return 0;
+		if (r->td_ == td)
+			return r;
+		if (tree_pred_(td, r->td_))
+			return z_find_r(r->left_ , td);
+		else
+			return z_find_r(r->right_, td);
+	}
+
+	link z_disconnect_smallest(link& root) {
+		if (root->left_ == 0) {
+			link tmp = root;
+			root = tmp->right_;
+			return tmp;
+		}
 		link r = root;
-		while (r->left_)
+		while (r->left_->left_)
 			r = r->left_;
 		link ret = r->left_;
 		r->left_ = ret->right_;
@@ -111,17 +106,19 @@ private:
 		if (0 == r) return;
 		if ( r->right_ && !heap_pred_(r->hd_, r->right_->hd_) ) {
 			z_rotate_left(r);
-			heapify(r->right_);
+			heapify(r->left_);
 		}
 		if ( r->left_  && !heap_pred_(r->hd_, r->left_ ->hd_) ) {
 			z_rotate_right(r);
-			heapify(r->left_);
+			heapify(r->right_);
 		}
 	}
 
 	link z_insert_r(link root, const TTree& td, const THeap& hd) {
-		if (0 == root) 
+		if (0 == root) {
+			++count_;
 			return new node_t(td, hd);
+		}
 
 		if (root->hd_ == hd || root->td_ == td)
 			return root;
@@ -137,6 +134,13 @@ private:
 			z_rotate_right(root);
 
 		return root;
+	}
+
+	void z_clear_r(link r) {
+		if (0 == r) return;
+		z_clear_r(r->right_);
+		z_clear_r(r->left_);
+		delete r;
 	}
 
 	//a      b
@@ -164,21 +168,55 @@ private:
 		ta->left_ = br;
 	}
 
-public:
+	/*
+		Data
+	*/
 
+	template 
+	<
+		  typename TT  = TTree
+		, typename TH  = THeap
+	>
+	struct node
+	{
+		TT td_;
+		TH hd_;
+		node<TT, TH>* left_;
+		node<TT, TH>* right_;
+
+		node(const TTree& td, const THeap& hd, node* left = 0, node* right = 0)
+			: td_(td)
+			, hd_(hd)
+			, left_ (left)
+			, right_(right)
+		{ }
+	};
+	typedef node<TTree, THeap>  node_t;
+
+	node_t* root_ ;
+	size_t  count_;
+	TTreePred tree_pred_;
+	THeapPred heap_pred_;
+
+	/*
+		Test stuff
+	*/
+#ifdef _DEBUG
+public:
 	bool test_sanity() {
-		return test_sanity_r(root_);
+		size_t count = 0;
+		bool b = test_sanity_r(root_, count);
+		return b && (count == count_);
 	}
 
-	bool test_sanity_r(const link r) {
+	bool test_sanity_r(const link r, size_t& count) {
 		if (0 == r) return true;
+		++count;
 		return (r->left_  == 0 || (tree_pred_(r->left_->td_, r->td_)  && heap_pred_( r->hd_, r->left_->hd_)) )
 			&& (r->right_ == 0 || (!tree_pred_(r->right_->td_, r->td_) && heap_pred_( r->hd_,r->right_->hd_)) )
-			&& test_sanity_r(r->right_) && test_sanity_r(r->left_);
+			&& test_sanity_r(r->right_, count) && test_sanity_r(r->left_, count);
 	}
-
-#ifdef _DEBUG
-#include "fftest.hpp"
+	#include "fftest.hpp"
 	//a      b
 	// \ => /
 	//  b  a
@@ -224,11 +262,20 @@ public:
 		test::verify(a->right_->right_->hd_ == 'c', "b->right_->right_ == c");
 	}
 
-#include <cstdio>
+	#include <cstdio>
 	void print(const char* path) const {
 		FILE* f = fopen(path, "wt");
 		fprintf(f, "DIGRAPH g {\n");
 		print_r(root_, f);
+		fprintf(f, "};");
+		fclose(f);
+	}
+
+	void print(const TTree& td, const char* path) const {
+		link r = z_find_r(root_, td);
+		FILE* f = fopen(path, "wt");
+		fprintf(f, "DIGRAPH g {\n");
+		print_r(r, f);
 		fprintf(f, "};");
 		fclose(f);
 	}
@@ -244,8 +291,7 @@ public:
 			print_r(r->left_, f);
 		}
 	}
-#endif //_DEBUG
-
+#endif //_DEBUG /* End test stuff*/
 };     // treap
 }      // ff
 #endif // __FF_TRIE__
