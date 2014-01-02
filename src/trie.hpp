@@ -2,60 +2,127 @@
 #define __FF_TRIE__
 #include <exception>
 #include <stack>
-
+#include <memory>
+#include <cstring>
+#if defined(_DEBUG) || !defined(NDEBUG)
+#include <stdio.h>
+#endif // DEBUG
 namespace ff {
+
+namespace { 
+template
+<
+	  typename _TypeChar = char
+	, typename _TypeData = int
+	, int _FIRST_LETTER = 'a'
+	, int _NUM_LETTERS =  'z'-'a' + 1
+>
+struct tnode
+{
+	enum {
+		FIRST_LETTER = _FIRST_LETTER,
+		NUM_LETTERS  = _NUM_LETTERS
+	};
+
+	typedef _TypeChar TypeChar;
+	typedef _TypeData TypeData;
+
+	TypeChar  ch_;
+	TypeData  d_;
+	char      child_count_;
+	tnode*    next_[NUM_LETTERS];
+	bool      is_leaf_;
+	tnode (TypeChar c = TypeChar(), TypeData d = TypeData())
+		: ch_(c)
+		, d_ (d)
+		, child_count_(0)
+		, is_leaf_(false)
+	{ memset(next_, 0, sizeof(next_)); }
+}; // node
 
 template
 <
-	  typename TypeChar = char
-	, typename TypeData = int
-	, int FIRST_LETTER = 'a'
-	, int NUM_LETTERS =  'z'-'a' + 1
+typename _TypeChar = char
+, typename _TypeData = int
+, int _FIRST_LETTER = 'a'
+, int _NUM_LETTERS =  'z'-'a' + 1
+>
+struct aho_tnode
+{
+	enum {
+		FIRST_LETTER = _FIRST_LETTER,
+		NUM_LETTERS  = _NUM_LETTERS
+	};
+
+	typedef _TypeChar TypeChar;
+	typedef _TypeData TypeData;
+
+	TypeChar  ch_;
+	TypeData  d_;
+	char      child_count_;
+	aho_tnode*   parent_;
+	aho_tnode*   suffix_;
+	aho_tnode*   next_[NUM_LETTERS];
+	bool      is_leaf_;
+
+	aho_tnode (aho_tnode* parent = 0, TypeChar c = TypeChar('0'), TypeData d = 0)
+		: ch_(c)
+		, d_ (d)
+		, child_count_(0)
+		, is_leaf_(false)
+		, parent_(parent)
+		, suffix_(0)
+	{ memset(next_, 0, sizeof(next_)); }
+}; // node
+}  // anonymous-namespace
+
+template
+<
+	typename TNode = typename ff::tnode<>
 >
 class trie
 {
-private:
-	struct node
-	{
-		TypeChar  ch_;
-		TypeData  d_;
-		char      child_count_;
-		node*     next_[NUM_LETTERS];
-		bool      is_leaf_;
-		node (TypeChar c = TypeChar(), TypeData d = 0)
-			: ch_(c)
-			, d_ (d)
-			, child_count_(0)
-			, is_leaf_(false)
-		{ std::memset(next_, 0, sizeof(next_)); }
-	} root_;
+protected:
+	typedef TNode node_t;
+	typedef typename node_t::TypeChar tchar_t;
+	typedef typename node_t::TypeData tdata_t;
+	static const int FIRST_LETTER = node_t::FIRST_LETTER;
+	static const int NUM_LETTERS  = node_t::NUM_LETTERS;
+
+	node_t* root_;
 
 public:
 	trie()
+		: root_(new node_t)
 	{ }
 
-	void insert(const TypeChar* str, const TypeData& data) {
-		z_insert(&root_, str, data);
+	virtual ~trie() {
+		z_remove( root_ );
+		root_ = 0;
 	}
 
-	const TypeData& try_get(const TypeChar* str) const {
-		node* n = find(str);
+	void insert(const tchar_t* str, const tdata_t& data) {
+		z_insert(root_, str, data);
+	}
+
+	const tdata_t& try_get(const tchar_t* str) const {
+		node_t* n = find(str);
 		if (0 == n || false == n->is_leaf_)
-			throw std::exception("value not found");
+ 			throw std::exception("value not found");
 		return n->d_;
 	}
 
-	TypeData& get(const TypeChar* str) {
-		return z_find_insert(&root_, str)->d_;
+	tdata_t& get(const tchar_t* str) {
+		return z_find_insert(root_, str)->d_;
 	}
 
-	void remove(const TypeChar* str) {
+	void remove(const tchar_t* str) {
 		if (0 == str)
 			return;
 
-		std::stack<node*> st;
-		node* c  = &root_;
-		for (const TypeChar* s = str; *s; ++s) {
+		std::stack<node_t*> st;
+		node_t* c  = root_;
+		for (const tchar_t* s = str; *s; ++s) {
 			const int i = chrToIdx(*s);
 			if (c->next_[i])
 				st.push(c = c->next_[i]);
@@ -69,7 +136,7 @@ public:
 			st.pop();
 			if (0 == c->child_count_) {
 				--c->child_count_;
-				const TypeChar t = c->ch_;
+				const tchar_t t = c->ch_;
 				delete c;
 				c = st.top();
 				c->next_[chrToIdx(tolower(t))] = 0;
@@ -77,13 +144,13 @@ public:
 		}
 	}
 
-private:
+protected:
 
-	node* z_find(node* root, const TypeChar* str) {
+	node_t* z_find(node_t* root, const tchar_t* str) {
 		if (0 == str)
 			return 0;
-		node* c  = root_;
-		for (const TypeChar* s = str; *s; ++s) {
+		node_t* c  = root_;
+		for (const tchar_t* s = str; *s; ++s) {
 			const int i = chrToIdx(*s);
 			if (c->next_[i])
 				c = c->next_[i];
@@ -93,30 +160,30 @@ private:
 		return c;
 	}
 
-	node* z_find_insert(node* root, const TypeChar* str) {
+	node_t* z_find_insert(node_t* root, const tchar_t* str) {
 		if (0 == str || 0 == root)
 			return 0;
-		node* c  = root;
-		for (const TypeChar* s = str; *s; ++s) {
+		node_t* c  = root;
+		for (const tchar_t* s = str; *s; ++s) {
 			const int i = chrToIdx(*s);
 			if (c->next_[i])
 				c = c->next_[i];
 			else
-				return z_insert(c, s, TypeData());
+				return z_insert(c, s, tdata_t());
 		}
 		c->is_leaf_ = true;
 		return c;
 	}
 
-	node* z_insert(node* root, const TypeChar* str, const TypeData& data) {
+	node_t* z_insert(node_t* root, const tchar_t* str, const tdata_t& data) {
 		if (0 == str || 0 == root)
 			return 0;
-		node* c  = root;
-		for (const TypeChar* s = str; *s; ++s) {
+		node_t* c  = root;
+		for (const tchar_t* s = str; *s; ++s) {
 			const int i = chrToIdx(tolower(*s));
 			if (!c->next_[i]) {
 				++c->child_count_;
-				c->next_[i] = new node(tolower(*s), 0);
+				c->next_[i] = new node_t(tolower(*s), 0);
 			}
 			c = c->next_[i];
 		}
@@ -125,17 +192,26 @@ private:
 		return c;
 	}
 
-	int chrToIdx(TypeChar ch) const
+	void z_remove(node_t* r) {
+		if (0 == r)
+			return;
+		for (int i = 0; i != NUM_LETTERS; ++i)
+			if (r->next_[i])
+				z_remove(r->next_[i]);
+		delete r;
+	}
+
+	int chrToIdx(tchar_t ch) const
 	{ return ch - FIRST_LETTER;}
 
 public:
 
-#if _DEBUG
+#if defined(_DEBUG) || !defined(NDEBUG)
 	bool test_count() {
-		return test_count_r(&root_);
+		return test_count_r(root_);
 	}
 
-	bool test_count_r(node* root) {
+	bool test_count_r(node_t* root) {
 		if (0 == root) return true;
 		int sum = 0;
 		for (int i = 0; i != NUM_LETTERS; ++i)
@@ -152,12 +228,12 @@ public:
 	void print() const {
 		FILE* f = fopen("D:\\tex.txt", "wt");
 		fprintf(f, "DIGRAPH g {\n");
-		print_r(&root_, 0, f);
+		print_r(root_, 0, f);
 		fprintf(f, "};");
 		fclose(f);
 	}
 
-	void print_r(const node* a, int start, FILE* f) const {
+	void print_r(const node_t* a, int start, FILE* f) const {
 		for (char c = 'a'; c < 'z'; ++c)
 			if (a->next_[chrToIdx(c)]) {
 				fprintf(f, "%c%d->%c%d;\n", a->ch_, start, c, start + 1 + chrToIdx(c));

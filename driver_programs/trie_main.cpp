@@ -28,7 +28,7 @@ void  ff_Verify(bool b, char* ch = 0) {
 using namespace std;
 
 void test_trie() {
-	ff::trie<char, int> t;
+	ff::trie<> t;
 	std::vector<std::pair<std::string, int> > v;
 	v.push_back(std::make_pair("abba",  1));
 	v.push_back(std::make_pair("abbaz", 2));
