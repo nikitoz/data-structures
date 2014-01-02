@@ -37,11 +37,27 @@ public:
 	}
 
 	template <typename TContainer>
-	TContainer match(tchar_t* text) const {
+	TContainer match(const tchar_t* text) const {
 		TContainer ret_cont;
-
-
-		//... TODO
+		int i;
+		node_t* r = root_;
+		for (const tchar_t* s = text; *s;) {
+			i = chrToIdx(tolower(*s));
+			if (r->next_[i]) {
+				r = r->next_[i];
+				if (r->is_leaf_) {
+					ret_cont.insert(ret_cont.end(), r->d_);
+					node_t* p = r;
+					while ((p = p->suffix_) && p->is_leaf_)
+						ret_cont.insert(ret_cont.end(), p->d_);
+				}
+				++s;
+			} else if (r == root_) {
+				++s;
+			} else {
+				r = r->suffix_;
+			}
+		}
 
 		return ret_cont;
 	}
