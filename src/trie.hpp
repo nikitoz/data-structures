@@ -9,7 +9,7 @@
 #endif // DEBUG
 namespace ff {
 
-namespace { 
+//namespace { 
 template
 <
 	  typename _TypeChar = char
@@ -17,7 +17,7 @@ template
 	, int _FIRST_LETTER = 'a'
 	, int _NUM_LETTERS =  'z'-'a' + 1
 >
-struct tnode
+struct tnode_base
 {
 	enum {
 		FIRST_LETTER = _FIRST_LETTER,
@@ -30,55 +30,54 @@ struct tnode
 	TypeChar  ch_;
 	TypeData  d_;
 	char      child_count_;
-	tnode*    next_[NUM_LETTERS];
 	bool      is_leaf_;
-	tnode (TypeChar c = TypeChar(), TypeData d = TypeData())
+
+	tnode_base (TypeChar c = TypeChar(), TypeData d = TypeData())
 		: ch_(c)
 		, d_ (d)
 		, child_count_(0)
 		, is_leaf_(false)
-	{ memset(next_, 0, sizeof(next_)); }
+	{ }
 }; // node
 
 template
 <
-typename _TypeChar = char
-, typename _TypeData = int
-, int _FIRST_LETTER = 'a'
-, int _NUM_LETTERS =  'z'-'a' + 1
+	  typename _TypeChar = char
+	, typename _TypeData = int
+	, int _FIRST_LETTER = 'a'
+	, int _NUM_LETTERS =  'z'-'a' + 1
 >
-struct aho_tnode
-{
-	enum {
-		FIRST_LETTER = _FIRST_LETTER,
-		NUM_LETTERS  = _NUM_LETTERS
-	};
-
-	typedef _TypeChar TypeChar;
-	typedef _TypeData TypeData;
-
-	TypeChar  ch_;
-	TypeData  d_;
-	char      child_count_;
-	aho_tnode*   parent_;
-	aho_tnode*   suffix_;
-	aho_tnode*   next_[NUM_LETTERS];
-	bool      is_leaf_;
-
-	aho_tnode (aho_tnode* parent = 0, TypeChar c = TypeChar('0'), TypeData d = 0)
-		: ch_(c)
-		, d_ (d)
-		, child_count_(0)
-		, is_leaf_(false)
-		, parent_(parent)
+struct aho_tnode : public ff::tnode_base<_TypeChar, _TypeData, _FIRST_LETTER, _NUM_LETTERS> {
+	typedef ff::tnode_base<_TypeChar, _TypeData, _FIRST_LETTER, _NUM_LETTERS> base_t;
+	aho_tnode(_TypeChar c = _TypeChar(), _TypeData d = _TypeData())
+		: base_t(c, d)
 		, suffix_(0)
 	{ memset(next_, 0, sizeof(next_)); }
+
+	aho_tnode*   suffix_;
+	aho_tnode*   next_[base_t::NUM_LETTERS];
 }; // node
-}  // anonymous-namespace
 
 template
 <
-	typename TNode = typename ff::tnode<>
+	  typename _TypeChar = char
+	, typename _TypeData = int
+	, int _FIRST_LETTER = 'a'
+	, int _NUM_LETTERS =  'z'-'a' + 1
+>
+struct tnode : public ff::tnode_base<_TypeChar, _TypeData, _FIRST_LETTER, _NUM_LETTERS> {
+	typedef ff::tnode_base<_TypeChar, _TypeData, _FIRST_LETTER, _NUM_LETTERS> base_t;
+	tnode(_TypeChar c = _TypeChar(), _TypeData d = _TypeData())
+		: base_t(c, d)
+	{ memset(next_, 0, sizeof(next_)); }
+
+	tnode*   next_[base_t::NUM_LETTERS];
+}; // node
+//}  // anonymous-namespace
+
+template
+<
+typename TNode = ff::tnode<>
 >
 class trie
 {
@@ -167,7 +166,7 @@ protected:
 		for (const tchar_t* s = str; *s; ++s) {
 			const int i = chrToIdx(*s);
 			if (c->next_[i])
-				c = c->next_[i];
+				c = (node_t*)c->next_[i];
 			else
 				return z_insert(c, s, tdata_t());
 		}
@@ -183,7 +182,7 @@ protected:
 			const int i = chrToIdx(tolower(*s));
 			if (!c->next_[i]) {
 				++c->child_count_;
-				c->next_[i] = new node_t(tolower(*s), 0);
+				c->next_[i] = new node_t(tolower(*s), data);
 			}
 			c = c->next_[i];
 		}

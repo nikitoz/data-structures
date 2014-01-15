@@ -36,15 +36,15 @@ void test_trie() {
 	v.push_back(std::make_pair("abb",   4));
 	v.push_back(std::make_pair("abbat",  5));
 
-	for (int i = 0; i != v.size(); ++i) {
+	for (int i = 0; i != (int)v.size(); ++i) {
 		t.insert(v[i].first.c_str(), v[i].second);
 		ff_Verify (t.test_count(), "test count failed");
 	}
 
-	for (int i = 0; i != v.size(); ++i)
+	for (int i = 0; i != (int)v.size(); ++i)
 		ff_Verify (v[i].second == t.get(v[i].first.c_str()), "was found incorrectly");
 	
-	for (int i = v.size()-1; i >= 0; --i) {
+	for (int i = (int)v.size()-1; i >= 0; --i) {
 		t.remove(v[0].first.c_str());
 		ff_Verify (t.test_count(), "test count failed");
 	}

@@ -1,12 +1,14 @@
-#include "../src/avl.hpp"
+
 #include <iostream>
 #include <map>
 #include <ctime>
 #include "HRTimer.h"
+#include "../_tests/avltree_test.h"
+#include "../src/avl.hpp"
 
 #define TEST_ELEMENTS_NUM 40000
 
-typedef ff_amap< int, int, std::less<int> > MapTest;
+typedef ff::amap< int, int, std::less<int> > MapTest;
 typedef std::map<int, int> StdMap;
 
 inline int random() {
@@ -49,17 +51,17 @@ bool testLookup(MapTest &mapy, StdMap& stdMap) {
 		}
 	}
 
-	if (!mapy.checkParents()) {
+	if (!mapy.check_parents()) {
 		std::cout << "!!! Parent checking failed !!!" << std::endl;
 		bRetVal = false;
 	}
 
-	if (!mapy.checkChildren()) {
+	if (!mapy.check_children()) {
 		std::cout << "!!! Children checking failed !!!" << std::endl;
 		bRetVal = false;
 	}
 
-	if (!mapy.checkBalancing(TEST_ELEMENTS_NUM)) {
+	if (!mapy.check_balancing(TEST_ELEMENTS_NUM)) {
 		printf("!!! Balancing fail !!!");
 		bRetVal = false;
 	}
@@ -80,17 +82,17 @@ bool testDelete(MapTest &mapy, StdMap& stdMap) {
 	}
 	std::cout << "Deletion time : " << tim.StopTimer() << std::endl;
 
-	if (!mapy.checkParents()) {
+	if (!mapy.check_parents()) {
 		std::cout << "!!! Parent checking failed !!!" << std::endl;
 		bRetVal = false;
 	}
 
-	if (!mapy.checkChildren()) {
+	if (!mapy.check_children()) {
 		std::cout << "!!! Children checking failed !!!" << std::endl;
 		bRetVal = false;
 	}
 
-	if (!mapy.checkBalancing(TEST_ELEMENTS_NUM)) {
+	if (!mapy.check_balancing(TEST_ELEMENTS_NUM)) {
 		printf("!!! Balancing fail !!!");
 		bRetVal = false;
 	}
@@ -136,8 +138,8 @@ int main() {
 		if (testDelete(avlTree, stdMap)) {
 			std::cout << "Delete success" << std::endl;
 		}
-		FF_AVL_GraphCreator::createDotFile<ff_amap< int, int, std::less<int> >
-			, anode<int, int> >(&avlTree, "graphAfter");
+		FF_AVL_GraphCreator::createDotFile<ff::amap< int, int, std::less<int> >
+			, ff::amap< int, int, std::less<int> >::node_t >(&avlTree, "graphAfter");
 		printf("OK!");
 	} else {
 		printf("Test Failed\n");

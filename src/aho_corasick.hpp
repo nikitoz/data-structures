@@ -4,18 +4,18 @@
 #include <exception>
 #include <stack>
 #include <memory>
-#include <stdio.h>
 #include <cctype>
 #include <cstring>
-#include <map>
+
+class aho_printer;
+
 namespace ff {
 
-	class aho_corasick : public ff::trie< ff::aho_tnode<> > {
-	typedef ff::trie< aho_tnode<> > parent_t;
-
+class aho_corasick : public trie< aho_tnode<> > {
+	typedef aho_tnode<> node_t;
 public:
 	aho_corasick()
-		: parent_t()
+		: trie()
 	{ }
 
 	template<typename TIter, typename TCons>
@@ -72,7 +72,7 @@ protected:
 
 		for (const tchar_t* s = str+1; *s; ++s) {
 			i = chrToIdx(tolower(*s));
-			node_t* sf = c->suffix_->next_[i];
+			node_t* sf = (node_t*)c->suffix_->next_[i];
 			if (0 == sf)
 				sf = root;
 			c->next_[i]->suffix_ = sf;
@@ -88,7 +88,7 @@ protected:
 			const int i = chrToIdx(tolower(*s));
 			if (!c->next_[i]) {
 				++c->child_count_;
-				c->next_[i] = new node_t(c, tolower(*s), 0);
+				c->next_[i] = new node_t(tolower(*s), 0);
 			}
 			c = c->next_[i];
 		}
@@ -96,56 +96,7 @@ protected:
 		c->is_leaf_ = true;
 		return c;
 	}
-public:
-#if defined(_DEBUG) || !defined(NDEBUG)
-	bool test_count() {
-		return test_count_r(root_);
-	}
-
-	bool test_count_r(node_t* root) {
-		if (0 == root) return true;
-		int sum = 0;
-		for (int i = 0; i != NUM_LETTERS; ++i)
-			if (0 != root->next_[i]) ++sum;
-
-		if (sum != root->child_count_) return false;
-
-		bool res = true;
-		for (int i = 0; i != NUM_LETTERS; ++i)
-			if (0 != root->next_[i]) res &= test_count_r(root->next_[i]);
-		return res;
-	}
-
-	void print() const {
-		std::map<const node_t*, int> maps;
-		FILE* f = fopen("D:\\tex.txt", "wt");
-		fprintf(f, "DIGRAPH g {\n");
-		fill_cache_map_r(root_, 0, maps);
-		print_r(root_, 0, f, maps);
-		fprintf(f, "};");
-		fclose(f);
-	}
-
-	void fill_cache_map_r(const node_t* a, int start, std::map<const node_t*, int>& maps) const {
-		maps[a] = start;
-		for (char c = 'a'; c < 'z'; ++c)
-			if (a->next_[chrToIdx(c)]) {
-				maps[a->next_[chrToIdx(c)]] = start + 1 + chrToIdx(c);
-				fill_cache_map_r(a->next_[chrToIdx(c)], start + 1 + chrToIdx(c), maps);
-			}
-	}
-
-	void print_r(const node_t* a, int start, FILE* f, std::map<const node_t*, int>& maps) const {
-		for (char c = 'a'; c < 'z'; ++c)
-			if (a->next_[chrToIdx(c)]) {
-				fprintf(f, "%c%d->%c%d;\n", a->ch_, start, c, start + 1 + chrToIdx(c));
-				print_r(a->next_[chrToIdx(c)], start + 1 + chrToIdx(c), f, maps);
-			}
-
-		fprintf(f, "%c%d->%c%d [color=\"red\"];\n", a->ch_, start, a->suffix_->ch_, maps[a->suffix_]);
-	}
-#endif // _DEBUG
-
+	friend class aho_printer;
 }; // aho_corasick
 }; // ff
 
