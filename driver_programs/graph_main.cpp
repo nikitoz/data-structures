@@ -6,6 +6,7 @@
 #include <vector>
 #include <math.h>
 #include "../src/graph.hpp"
+#include "../src/algorithms.hpp"
 
 using namespace ff;
 
@@ -42,11 +43,11 @@ bool testGraph() {
 
 	typedef digraph<int> Graph;
 
-	size_t s = shortest_path_astar< Graph, std::less<Graph::edge_t> >()( graphy, 0, 4 );
+	size_t s = ff::shortest_path_astar< Graph, std::less<Graph::edge_t> > ( graphy, 0, 4 );
 	std::cout << s << std::endl;
 
-	bfs<Graph, all_true<Graph::node_t> >()(graphy, 0);
-	dfs<Graph, all_true<Graph::node_t> >()(graphy, 0);
+	bfs<Graph, ff::fn_true> ( graphy, 0 );
+	dfs<Graph, ff::fn_true> ( graphy, 0 );
 
 	return true;
 }
@@ -84,9 +85,9 @@ void courseraTest(const char * path) {
 
 void descartesLoadTest(const char* path)
 {
-	graph graph;
+	ff::graph graph;
 	std::ifstream input_stream(path);
-	ff::descartes_graph_builder<tgraph, double> graph_builder;
+	ff::descartes_graph_builder<ff::graph, double> graph_builder;
 	graph_builder(graph, input_stream);
 	graph.ncount();
 }

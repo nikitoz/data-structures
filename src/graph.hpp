@@ -20,29 +20,29 @@ template <typename T>
 struct diedge
 {
 	diedge() 
-		: _pFrom(NULL), _pTo(NULL), _cost(0)
+		: from_(0), to_(0), cost_(0)
 	{ }
 
-	diedge(T* pFrom, T* pTo, size_t cost) 
-		: _pTo(pTo), _pFrom(pFrom), _cost(cost)
+	diedge(T* from, T* to, size_t cost) 
+		: to_(to), from_(from), cost_(cost)
 	{ }
 
 	size_t to() const
-	{ return _pTo->_index; }
+	{ return to_->_index; }
 
 	size_t from() const
-	{ return _pFrom->_index; }
+	{ return from_->_index; }
 
 	bool operator<(const diedge& de) const
-	{ return _cost < de._cost; }
+	{ return cost_ < de.cost_; }
 
 	bool operator>(const diedge& de) const
-	{ return _cost > de._cost; }
+	{ return cost_ > de.cost_; }
 
-	T* _pFrom;
-	T* _pTo;
-	size_t _cost;
-};
+	T*     from_;
+	T*     to_;
+	size_t cost_;
+}; // diedge
 
 /*
     Graph node
@@ -57,23 +57,23 @@ struct gnode
 	typedef std::map<index_t, edge_t> edges_t;
 
 	gnode(T node, size_t index) 
-		: _data(node), _index(index)
+		: data_(node), index_(index)
 	{ }
 
 	gnode() 
-		: _index(INFINITY)
+		: index_(INFINITY)
 	{ }
 
 	bool bad() const
-	{ return _index == INFINITY; }
+	{ return index_ == INFINITY; }
 
 	size_t ecount() const
-	{ return _edges.size(); }
+	{ return edges_.size(); }
 
-	index_t _index;
-	T	    _data;
-	edges_t _edges; // out from this node
-};
+	index_t index_;
+	T	    data_;
+	edges_t edges_; // out from this node
+};// gnode
 } // anonymous-namespace
 /*
     General graph search
@@ -84,33 +84,28 @@ template
 	, typename TP  // Predicate returns true when we're done
 	, typename TC  // Container for internal loop
 >
-struct graph_search
+void graph_search ( const TG& g, size_t src)
 {
-	typename TG::node_t operator()( const TG& g, size_t src)
+	std::vector<bool> visited(g.ncount(), false);
+	TP is_destination;
+	TC container;
+	container.push(src);
+	visited[src] = true;
+	do
 	{
-		std::vector<bool> visited(g.ncount(), false);
-		TP is_destination;
-		TC container;
-		container.push(src);
-		visited[src] = true;
-		do
-		{
-			size_t current = container.top(); container.pop();
-
-			if (is_destination(g.node(current)))
-				return g.node(current);
-
-			for (TG::edges_t::const_iterator it = g.edges(current).begin(); it != g.edges(current).end(); ++it)
-				if (visited[it->second.to()] == false)
-				{
-					visited[it->second.to()] =  true;
-					container.push(it->second.to());
-				}
-		} 
-		while (!container.empty());
-		return TG::node_t();
-	}
-};
+		size_t current = container.top(); container.pop();
+		if (is_destination(g.node(current)))
+			return g.node(current);
+		for (TG::edges_t::const_iterator it = g.edges(current).begin(); it != g.edges(current).end(); ++it)
+			if (visited[it->second.to()] == false)
+			{
+				visited[it->second.to()] =  true;
+				container.push(it->second.to());
+			}
+	} 
+	while (!container.empty());
+	return TG::node_t();
+}
 
 /*
 	Container for bfs
@@ -156,13 +151,10 @@ template
     , typename TP // Search finishing condition
     , typename TC // Internal usage container
 >
-struct xfs
+typename TG::node_t xfs ( const TG& g, typename TG::index_t from ) const
 {
-	typename TG::node_t operator()( const TG& g, typename TG::index_t from ) const
-	{
-		return graph_search<TG, TP, TC> () (g, from);
-	}
-};
+	return graph_search <TG, TP, TC> (g, from);
+}
 
 /*
 	Depth-first search algo
@@ -173,13 +165,10 @@ template
       typename TG // Graph class
     , typename TP // Search finishing condition
 >
-struct dfs
-{
-	typename TG::node_t operator()( const TG& g, typename TG::index_t from ) const
-	{ 
-		return xfs<TG, TP, dfs_container<TG> > () (g, from); 
-	}
-};
+typename TG::node_t dfs ( const TG& g, typename TG::index_t from ) const
+{ 
+	return xfs <TG, TP, dfs_container<TG> > (g, from); 
+}
 
 /*
 	Breadth-first search algo
@@ -190,13 +179,10 @@ template
       typename TG // Graph class
     , typename TP // Search finishing condition
 >
-struct bfs
-{
-	typename TG::node_t operator()( const TG& g, typename TG::index_t from ) const
-	{ 
-		return xfs<TG, TP, bfs_container<TG> > () (g, from); 
-	}
-};
+typename TG::node_t bfs ( const TG& g, typename TG::index_t from ) const
+{ 
+	return xfs <TG, TP, bfs_container<TG> > (g, from); 
+}
 
 /*
 	Functional object for shortest path algo (uses A* inside)
@@ -207,63 +193,59 @@ template
       typename TG    // Graph class
     , typename TEP   // Edge predicate
 >
-struct shortest_path_astar
+size_t shortest_path_astar( const TG& g, size_t src, size_t dst ) const
 {
-	size_t operator()( const TG& g, size_t src, size_t dst ) const
+	if (src == dst) return 0;
+	std::vector<size_t> cost(g.ncount(), INFINITY);
+	std::vector<size_t> from(g.ncount(), INFINITY);
+	cost[src] = 0;
+	bheap<TG::edge_t, TEP> bheap;
+	size_t current = src;
+	do
 	{
-		if (src == dst) return 0;
-		std::vector<size_t> cost(g.ncount(), INFINITY);
-		std::vector<size_t> from(g.ncount(), INFINITY);
-		cost[src] = 0;
-		bheap<TG::edge_t, TEP> bheap;
-		size_t current = src;
-		do
-		{
-			for (TG::edges_t::const_iterator it = g.edges(current).begin(); it != g.edges(current).end(); ++it)
-				if (cost[it->second.to()] == INFINITY)
-					bheap.insert(it->second);
+		for (TG::edges_t::const_iterator it = g.edges(current).begin(); it != g.edges(current).end(); ++it)
+			if (cost[it->second.to()] == INFINITY)
+				bheap.insert(it->second);
+		if (bheap.empty())
+			return INFINITY;
 
-			if (bheap.empty())
-				return INFINITY;
-
-			TG::edge_t edge = bheap.pop();
-			cost[edge.to()] = edge._cost + cost[edge.from()];
-			from[edge.to()] = edge.from();
-			current         = edge.to();
-		}
-		while (dst != current);
-		return cost[dst];
+		TG::edge_t edge = bheap.pop();
+		cost[edge.to()] = edge._cost + cost[edge.from()];
+		from[edge.to()] = edge.from();
+		current         = edge.to();
 	}
-};
+	while (dst != current);
+	return cost[dst];
+}
 
 struct coloring_result
 {
 	coloring_result(std::vector<int> node_colors, size_t color_count, bool optimal, std::vector<int> more_optimal = std::vector<int>())
-		: _is_optimal(optimal), _node_colors(node_colors), _color_count(color_count), _more_optimal(more_optimal), _is_valid(true)
+		: is_optimal_(optimal), node_colors_(node_colors), color_count_(color_count), more_optimal_(more_optimal), is_valid_(true)
 	{ }
 
 	coloring_result()
-		: _is_valid(false)
+		: is_valid_(false)
 	{ }
 
 	size_t ccount() const
-	{ return _color_count; }
+	{ return color_count_; }
 
 	std::vector<int> nodes_colors() const
-	{ return _node_colors; }
+	{ return node_colors_; }
 
 	bool optimal() const
-	{ return _is_optimal; }
+	{ return is_optimal_; }
 
 	bool valid() const
-	{ return _is_valid; }
+	{ return is_valid_; }
 
 private:
-	std::vector<int> _node_colors;
-	size_t _color_count;
-	bool _is_optimal;
-	std::vector<int> _more_optimal;
-	bool _is_valid;
+	std::vector<int> node_colors_;
+	std::vector<int> more_optimal_;
+	size_t           color_count_;
+	bool             is_optimal_;
+	bool             is_valid_;
 };
 
 /*
@@ -559,7 +541,7 @@ struct graph : public digraph<T, TLength>
 
 template
 <
-	  typename TNode = int // Some associated with node data
+	  typename TNode   = int // Some associated with node data
 	, typename TLength = size_t // edge length type
 >
 class digraph
@@ -571,51 +553,49 @@ public:
 	typedef typename node_t::edges_t edges_t;
 	typedef typename node_t::index_t index_t;
 
-	friend shortest_path_astar< digraph<T>, std::less<edge_t> >;
-
 	digraph() { }
 
 	digraph(size_t count)
-	{ _nodes.reserve(count); }
+	{ nodes_.reserve(count); }
 
 	size_t add(const T& data)
 	{
-		_nodes.push_back(node_t(data, _nodes.size()));
-		return _nodes.size() - 1;
+		nodes_.push_back(node_t(data, nodes_.size()));
+		return nodes_.size() - 1;
 	}
 
 	void connect(size_t from, size_t to, int cost)
 	{
-		if (from < _nodes.size() && to < _nodes.size() && to != from)
-			_nodes[from]._edges[to] = edge_t(&_nodes[from], &_nodes[to], cost);
+		if (from < nodes_.size() && to < nodes_.size() && to != from)
+			nodes_[from].edges_[to] = edge_t(&nodes_[from], &nodes_[to], cost);
 	}
 
 	size_t cost(size_t from, size_t to) const
-	{ return shortest_path_astar< digraph<T>, std::less<edge_t> >()(*this, from, to); }
+	{ return ff::shortest_path_astar< digraph<T>, std::less<edge_t> >(*this, from, to); }
 
 	coloring_result colours() const
 	{ return coloring_b_and_b< digraph<T> >()( *this );	}
 
 	size_t ncount() const
-	{ return _nodes.size();	}
+	{ return nodes_.size();	}
 
 	node_t node(size_t index) const
-	{ return _nodes[index]; }
+	{ return nodes_[index]; }
 
 	const nodes_t& nodes() const
-	{ return _nodes; }
+	{ return nodes_; }
 
 	bool connected(size_t from, size_t to) const
 	{ return edges(from).find(to) != edges(from).end();	}
 
 	edge_t edge(size_t from, size_t to) const
-	{ return _nodes[from]._edges[to]; }
+	{ return nodes_[from].edges_[to]; }
 
 	const edges_t& edges(size_t from) const
-	{ return _nodes[from]._edges; }
+	{ return nodes_[from].edges_; }
 
 private:
-	nodes_t _nodes;
+	nodes_t nodes_;
 
 public:
 
@@ -627,8 +607,8 @@ public:
 	bool test_CheckColoring(coloring_result& cr) const
 	{
 		std::vector<int> node_colors = cr.nodes_colors();
-		for ( nodes_t::const_iterator it  = _nodes.begin(); it != _nodes.end(); ++it)
-			for (edges_t::const_iterator ie = it->_edges.begin(); ie != it->_edges.end(); ++ie)
+		for ( nodes_t::const_iterator it  = nodes_.begin(); it != nodes_.end(); ++it)
+			for (edges_t::const_iterator ie = it->edges_.begin(); ie != it->edges_.end(); ++ie)
 				if (node_colors[ie->second.to()] == node_colors[ie->second.from()])
 					throw std::exception("Incorrect coloring");
 	}

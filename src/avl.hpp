@@ -7,36 +7,39 @@
 #include <complex>
 #endif // _DEBUG
 #pragma warning(disable:4267)
+#include "contiguous_stack.hpp"
+#include "algorithms.hpp"
+#include <math.h>
 
 /*
 	Internal type for saving key-value pair data of the AVL-tree
 */
 class FF_AVLTree_test;
 class FF_AVL_GraphCreator;
-namespace ff {
-namespace {
+namespace ff { namespace {
+
 template
 <
-	  typename TKey
-	, typename TVal
+	  typename key_t
+	, typename value_t
 >
 struct node {
-	node(TKey k = TKey(), TVal v = TVal(), node* p = NULL) 
+	node(key_t k = key_t(), value_t v = value_t(), node* p = 0)
 		: balance(0)
-		, right(NULL)
-		, left(NULL)
+		, right(0)
+		, left(0)
 		, childCount(0)
 		, parent(p)
-		, key(k)
-		, val(v)
+		, first(k)
+		, second(v)
 	{ }
 
 	node(const node& a)
 	{ *this = a; }
 
 	const node& operator=(const node& node) {
-		key	    = node.key; 
-		val	    = node.val; 
+		first	    = node.first; 
+		second	    = node.second; 
 		balance = node.balance;
 		left    = node.left;
 		right   = node.right;
@@ -50,99 +53,104 @@ struct node {
 	}
 
 	void update_balance()
-	{ balance = (left == NULL ? 0 : left->childCount+1) - (right == NULL ? 0 : right->childCount+1); }
+	{ balance    = (left == 0 ? 0 : left->childCount + 1) - (right == 0 ? 0 : right->childCount + 1); }
 
 	void update_child_count()
-	{ childCount = (left == NULL ? 0 : left->childCount + 1) + (right == NULL ? 0 : right->childCount + 1); }
+	{ childCount = (left == 0 ? 0 : left->childCount + 1) + (right == 0 ? 0 : right->childCount + 1); }
 
-	TKey key;
-	TVal val;
-	int balance;
+	key_t        first;
+	value_t      second;
+	int          balance;
 	unsigned int childCount;
 
 	node* parent;
 	node* left;
 	node* right;
-};
-}
+}; // node
+}  // anonymous-namespace
 /*
 	Map implementation based on AVL Tree
 */
 template
 <
-	  typename TKey
-	, typename TVal
-	, typename TPred  = std::less<TKey>
-	, typename TAlloc = std::allocator< node<TKey, TVal> > 
+	  typename key_t
+	, typename value_t
+	, typename pred_t  = std::less<key_t>
+	, typename alloc_t = std::allocator< node<key_t, value_t> > 
  >
 class amap {
 public :
-	typedef node<TKey, TVal> node_t;
-	typedef node<TKey, TVal>*ptr_node_t;
+	typedef node<key_t, value_t> node_t;
+	typedef node<key_t, value_t>*ptr_node_t;
+	typedef contiguous_stack<ptr_node_t*> parent_stack_t;
+	struct iterator;
 
 	amap()
-		: root_(NULL)
+		: root_(nullptr)
 		, size_()
 	{ }
 
-	const TVal* nodePtr(const TKey& key) const 
+	const value_t* nodePtr(const key_t& key) const 
 	{ return z_find_node(root_, key); }
 
-	void insert(const TKey& key, const TVal& val) 
+	void insert(const key_t& key, const value_t& val) 
 	{ operator[](key) = val; }
 
-	TVal& operator[](const TKey& key) {
-		ptr_node_t* stack_path[StackSize];
-		size_t N = 0;
-		ptr_node_t* node = z_find_node_ptr_ptr(&root_, key, stack_path, N);
+	value_t& operator[](const key_t& key) {
+		parent_stack_t stack_for_key(bound_height());
+		ptr_node_t* node = z_find_node_ptr_ptr(&root_, key, stack_for_key);
 		if (*node)
-			return (*node)->val;
+			return (*node)->second;
 		
-		*node = alloc(key, TVal(), N ? *stack_path[N-1] : NULL);
-		TVal& retval = (*node)->val;
-		z_balance_stack(stack_path, N);
+		*node = alloc(key, value_t(), stack_for_key.empty() ? nullptr : *stack_for_key.top());
+		value_t& retval = (*node)->second;
+		z_balance_stack(stack_for_key);
 		size_++;
 		return retval;
+	}
+
+	iterator find(const key_t& key) {
+		ptr_node_t* node = z_find_node_ptr_ptr(&root_, key, stack_for_key);
+		if (*node)
+			return iterator(*node);
+		return end();
 	}
 
 	size_t count() const
 	{ return size_; }
 
-	bool erase(const TKey& key) {
+	bool erase(const key_t& key) {
 		if(!root_)
 			return false;
-
-		ptr_node_t* stack_for_key[StackSize] = {0};
-		size_t N1 = 0;
-		ptr_node_t* node_to_remove = z_find_node_ptr_ptr(&root_, key, stack_for_key, N1);
+		parent_stack_t stack_for_key(bound_height());
+		ptr_node_t* node_to_remove = z_find_node_ptr_ptr(&root_, key, stack_for_key);
 
 		if (!node_to_remove || !*node_to_remove)
 			return false;
 
-		ptr_node_t* stack_path_for_substitution[StackSize];
-		size_t N2 = 0;
-		ptr_node_t* pp_substitution      = z_find_substitution(*node_to_remove, stack_path_for_substitution, N2);
-		ptr_node_t  p_substitution       = pp_substitution ? *pp_substitution : NULL;
-		ptr_node_t  p_substitution_child = p_substitution  ?  p_substitution->left ? p_substitution->left : p_substitution->right : NULL;
+		parent_stack_t stack_path_for_substitution(bound_height());
+		ptr_node_t* pp_substitution      = z_find_substitution(*node_to_remove, stack_path_for_substitution);
+		ptr_node_t  p_substitution       = pp_substitution ? *pp_substitution : nullptr;
+		ptr_node_t  p_substitution_child = p_substitution  ?  p_substitution->left ? p_substitution->left : p_substitution->right : nullptr;
 		ptr_node_t  p_delete_me = *node_to_remove;
 
 		if (pp_substitution) {
 			*pp_substitution = p_substitution_child;
 			*node_to_remove   = p_substitution;
-			p_substitution->left   = p_delete_me->left  != p_substitution ? p_delete_me->left  : NULL;
-			p_substitution->right  = p_delete_me->right != p_substitution ? p_delete_me->right : NULL;
+			p_substitution->left   = p_delete_me->left  != p_substitution ? p_delete_me->left  : nullptr;
+			p_substitution->right  = p_delete_me->right != p_substitution ? p_delete_me->right : nullptr;
 			p_substitution->parent = p_delete_me->parent;
 
 			z_update(p_substitution->left);
 			z_update(p_substitution->right);
 			z_update(p_substitution);
 
-		} else *node_to_remove = NULL;
+		} else *node_to_remove = nullptr;
 
-		for (size_t i = N2-1; i != UNDER_ZERO; --i)
-			z_update(*(stack_path_for_substitution[i]));
+		while (false == stack_path_for_substitution.empty())
+			z_update(*stack_path_for_substitution.pop());
 
-		z_balance_stack(stack_for_key, N1);
+		z_balance_stack(stack_for_key);
 		dealloc(p_delete_me);
 		--size_;
 		return true;
@@ -153,44 +161,20 @@ public :
 		Supports -> and ++ (TODO: --)
 	*/
 	struct iterator {
-		iterator(ptr_node_t _node)
+		iterator(ptr_node_t _node = nullptr)
 		{ node_ = _node; }
-
-		iterator()
-		{ node_ = NULL; }
 
 		iterator(const iterator& _i)
 		{ node_ = _i.node_; }
 
 		const iterator& operator++() {
-			// Node is visited go to left-visit-right
-			ptr_node_t prev = node_;
-			if (node_->right) {
-				node_ = node_->right;
-				while(node_->left) 
-					node_ = node_->left;
-				return *this;
-			}
-
-			node_ = node_->parent;
-
-			if (!node_)
-				return *this;// end()
-
-			// if prev was left then visit this node
-			if (node_->left == prev)
-				return *this; // then go to right
-
-			// if prev was right then go up, until we're not in right subtree
-			while(node_ && node_->right == prev) {
-				prev = node_;
-				node_ = node_->parent;
-			}
+			node_ = ff::next_in_binary_tree_with_parent(node_);
 			return *this;
 		}
 
 		const iterator& operator--() {
-			// TODO : implement 
+			node_ = ff::prev_in_binary_tree_with_parent(node_);
+			return *this;
 		}
 
 		bool operator!=(const iterator& i) const 
@@ -198,6 +182,8 @@ public :
 
 		const ptr_node_t operator->() const 
 		{ return node_; }
+
+		friend class amap;
 
 	private:
 		ptr_node_t node_;
@@ -214,12 +200,45 @@ public :
 		return iterator();
 	}
 
+	amap(const amap& _amap) 
+	{
+		/*Not available*/
+		this->~amap();
+		
+		/*for (iterator it = _amap.begin(); it != _amap.end(); ++it) {
+			node_t* node = new node_t(it->key, it->val, nullptr);
+		}*/
+	}
+
+	~amap()
+	{ 	
+		node_t* r = root_;
+		if (nullptr == r)
+			return;
+		std::stack<ptr_node_t> st;
+		st.push(r);
+		do {
+			node_t* t = st.top(); st.pop();
+			if (t->right) st.push(t->right);
+			if (t->left)  st.push(t->left );
+			dealloc(t);
+		} while (!st.empty());
+	}
+
+	const amap& operator=(const amap& _amap)
+	{/*Not available*/}
+
+
+	void deep_copy(const amap& that) {
+		
+	}
+
 protected:
 
-	inline void z_balance_stack(ptr_node_t** nodes, size_t& N) {
-		ptr_node_t* node;
-		for (size_t i = N - 1; i != UNDER_ZERO; --i) {
-			node = nodes[i];
+	inline void z_balance_stack(parent_stack_t& parents) {
+		ptr_node_t* node = nullptr;
+		while (false == parents.empty()) {
+			node = parents.pop();
 			*node = z_balance(*node);
 		}
 	}
@@ -281,80 +300,80 @@ protected:
 		return z_single_right_rotate(a);
 	}
 
-	ptr_node_t* z_find_substitution(ptr_node_t& root, ptr_node_t** parents,  size_t& N) {
-		ptr_node_t* pRetVal;
-		pRetVal = getOnlyOneChild(root);
-		if (pRetVal)
+	ptr_node_t* z_find_substitution(ptr_node_t& root, parent_stack_t& parents) {
+		if (ptr_node_t* pRetVal = getOnlyOneChild(root))
 			return pRetVal;
 
 		if (root->left)
-			return z_find_very_right_child(root->left, parents, N);
+			return z_find_very_right_child(root->left, parents);
 
 		if (root->right)
-			return z_find_very_left_child(root->right, parents, N);
+			return z_find_very_left_child(root->right, parents);
 
-		return NULL;
+		return 0;
 	}
 
 	ptr_node_t* getOnlyOneChild(ptr_node_t root) {
 		if (root && root->childCount == 1)
 			return root->left ?  &(root->left) : &(root->right);
-		return NULL;
+		return 0;
 	}
 
-	ptr_node_t* z_find_very_left_child(ptr_node_t& root, ptr_node_t** parents,  size_t& N) {
+	ptr_node_t* z_find_very_left_child(ptr_node_t& root, parent_stack_t& parents) {
 		ptr_node_t* node = &root;
 		size_t i = 0;
 		while ((*node)->left) {
-			parents[i++] = node;
+			parents.push(node);
 			node = &((*node)->left);
 		}
-		parents[i++] = node;
-		N = i;
-
+		parents.push(node);
 		return node;
 	}
 
-	ptr_node_t* z_find_very_right_child(ptr_node_t& root, ptr_node_t** parents,  size_t& N) {
+	ptr_node_t* z_find_very_right_child(ptr_node_t& root, parent_stack_t& parents) {
 		ptr_node_t* node = &root;
 		size_t i = 0;
 		while ((*node)->right) {
-			parents[i++] = node;
+			parents.push(node);
 			node = &((*node)->right);
 		}
-		parents[i++] = node;
-		N = i;
-
+		parents.push(node);
 		return node;
 	}
 
-	ptr_node_t* z_find_node_ptr_ptr(ptr_node_t* root, const TKey& key, ptr_node_t** parents, size_t& N) {
+	ptr_node_t* z_find_node_ptr_ptr(ptr_node_t* root, const key_t& key, parent_stack_t& parents) {
 		ptr_node_t* node = root;
-
 		size_t i = 0;
-		while(*node && (*node)->key != key) {
-			parents[i++] = node;
+		while(*node && (*node)->first != key) {
+			parents.push(node);
 			node = z_p_child_on_predicate(*node, key);
 		}
-		N = i;
 		return node;
 	}
 
-	const TVal* z_find_node(const ptr_node_t root, const TKey& key) const {
+	ptr_node_t* z_find_node_ptr_ptr(ptr_node_t* root, const key_t& key) {
+		ptr_node_t* node = root;
+		size_t i = 0;
+		while(*node && (*node)->first != key)
+			node = z_p_child_on_predicate(*node, key);
+		return node;
+	}
+
+	const value_t* z_find_node(const ptr_node_t root, const key_t& key) const {
 		ptr_node_t current = root;
 
-		while (current && current->key != key)
+		while (current && current->first != key)
 			current = z_child_on_predicate(current, key);
 		
-		return current ? &(current->val) : NULL;
+		return current ? &(current->second) : 0;
 	}
 
-	inline const ptr_node_t& z_child_on_predicate(const ptr_node_t root, const TKey& key) const {
-		return (predicate_(root->key, key)) ? root->right : root->left;
+	inline const ptr_node_t& z_child_on_predicate(const ptr_node_t root, const key_t& key) const {
+		return (predicate_(root->first, key)) ? root->right : root->left;
 	}
 
-	inline ptr_node_t* z_p_child_on_predicate(const ptr_node_t root, const TKey& key) {
-		return (predicate_(root->key, key)) ? &(root->right) : &(root->left);
+	inline ptr_node_t* z_p_child_on_predicate(const ptr_node_t root, const key_t& key) {
+		return (predicate_(root->first, key)) ? &(root->right) : &(root->left);
 	}
 
 	inline ptr_node_t z_balance(ptr_node_t root) {
@@ -380,29 +399,29 @@ protected:
 		return root;
 	}
 
-	inline void dealloc(ptr_node_t node) {
-		if(node)
-			allocator_.deallocate(node, 1);
-		node = NULL;
+	// theoretical upper bound for AVL tree height + 2
+	inline size_t bound_height() {
+		const double fi = 1.618; // golden ratio
+		const double nom = sqrt(5)*(size_+2);
+		return (size_t)ceil(log(nom)/log(fi));
 	}
 
-	inline ptr_node_t alloc(const TKey& key, const TVal& val, ptr_node_t parent) {
+	void dealloc(ptr_node_t node) {
+		if(node)
+			allocator_.deallocate(node, 1);
+		node = 0;
+	}
+
+	inline ptr_node_t alloc(const key_t& key, const value_t& val, ptr_node_t parent) {
 		ptr_node_t ptr = allocator_.allocate(1,0);
 		allocator_.construct(ptr, node_t(key, val, parent));
 		return ptr;
 	}
 
-	amap(const amap& _amap) 
-	{/*Not available*/}
-	const amap& operator=(const amap& _amap)
-	{/*Not available*/}
-
-
 	ptr_node_t root_;
-	TPred	 predicate_;
-	TAlloc	 allocator_;
+	pred_t	 predicate_;
+	alloc_t	 allocator_;
 	size_t   size_;
-	enum {StackSize = 4096};
 	static const size_t UNDER_ZERO = (size_t)(0-1);
 
 #ifdef _DEBUG
@@ -417,7 +436,7 @@ public:
 		They are VERY inefficient and ugly, don't look at them
 	*/
 	int get_max_path(ptr_node_t root) {
-		if (root != NULL) {
+		if (root != 0) {
 			return std::max<int>(get_max_path(root->left)+1, get_max_path(root->right) + 1); 
 		} else { 
 			return 0;
@@ -471,7 +490,7 @@ public:
 	{ return get_num_elements(root_); }
 	// returns true if parent property is correct in every node
 	bool check_parents() 
-	{ return checkParents_internal(root_, NULL); }
+	{ return checkParents_internal(root_, 0); }
 	// returns true if childCount property is set correctly in every node
 	bool check_children() 
 	{ return check_child_counts(root_); }
