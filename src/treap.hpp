@@ -4,7 +4,7 @@
 #include "base_iterator.hpp"
 
 /*
-	Treap implementation
+	Simple treap implementation
 	Mostly recursive
 */
 class treap_test;
@@ -19,64 +19,81 @@ template
 class treap
 {
 protected:
-	
+	typedef TTree      key_t;
+	typedef THeap      heap_t;
+	typedef TTreePred  tree_pred_t;
+	typedef THeapPred  theap_pred_t;
+
+	friend class treap_test;
+
 	/*
-		Data
+		Treap node type definition
 	*/
 
-	template 
-	<
-		  typename TT  = TTree
-		, typename TH  = THeap
-	>
 	struct node
 	{
-		typedef std::pair<TT, TH> data_t;
+		typedef std::pair<key_t, heap_t> data_t;
 		// first - value_key, second - heap_key
-		std::pair<TT, TH> d_;
-		node<TT, TH>*     left_;
-		node<TT, TH>*     right_;
+		data_t d_;
+		node*  left_;
+		node*  right_;
 
-		node(const TTree& td, const THeap& hd, node* left = 0, node* right = 0)
+		node(const key_t& td, const heap_t& hd, node* left = 0, node* right = 0)
 			: d_(td, hd)
 			, left_ (left)
 			, right_(right)
 		{ }
 	}; // node<KeyValue, HeapValue>
 
-	typedef node<TTree, THeap>  node_t;
-	typedef node_t*             link_t;
+	typedef node    node_t;
 
 public:
-	friend class treap_test;
-	typedef TTree key_value_t;
-	typedef THeap heap_value_t;
-
 	struct iterator : public ff::base_iterator<node_t, typename node_t::data_t>
 	{
-		iterator(link_t& node) : node_(node) { }
+		iterator(node_t*& node)
+			: node_(node) { }
 
-		data_t& operator*() {
-			return node_.d_;
+		inline data_t& operator*() {
+			return node_->d_;
 		}
 
-		data_t* operator->() {
+		inline data_t* operator->() {
 			return &node_->d_;
 		}
 
-		bool operator==(const iterator& that) const {
+		inline bool operator==(const iterator& that) const {
 			return this->node_ == that.node_;
 		}
 
-		bool operator!=(const iterator& that) const {
+		inline bool operator!=(const iterator& that) const {
 			return this->node_ != that.node_;
 		}
+
+		inline iterator &operator++() {
+			node_ = ff::next_in_binary_tree_with_parent(node_);
+			return *this;
+		}
+		inline iterator operator++(int) {
+			iterator r = *this;
+			node_ = ff::next_in_binary_tree_with_parent(node_);
+			return r;
+		}
+		inline iterator &operator--() {
+			node_ = ff::prev_in_binary_tree_with_parent(node_);
+			return *this;
+		}
+		inline iterator operator--(int) {
+			iterator r = *this;
+			node_ = ff::prev_in_binary_tree_with_parent(node_);
+			return r;
+		}
 		friend class treap;
+
 	protected:
-		link_t& node_;
+		node_t*& node_;
 	}; // iterator
 
-	static link_t shared_null;
+	static node_t* shared_null;
 
 public:
 	treap()
@@ -88,19 +105,19 @@ public:
 		clear_r();
 	}
 
-	void insert_r(const key_value_t& td, const heap_value_t& hd) {
+	void insert_r(const key_t& td, const heap_t& hd) {
 		root_ = z_insert_r(root_, td, hd);
 	}
 
-	void erase_r(const key_value_t& td) {
+	void erase_r(const key_t& td) {
 		root_ = z_erase_r(root_, td);
 	}
 
-	const key_value_t& top() const {
+	const key_t& top() const {
 		return root_->d_.first;
 	}
 
-	bool contains_t(const key_value_t& td) const {
+	bool contains_t(const key_t& td) const {
 		return z_find_r(root_, td) != 0;
 	}
 
@@ -113,8 +130,8 @@ public:
 		root_ = 0;
 	}
 
-	iterator find_r(const key_value_t& key) {
-		if (link_t& node = z_find_r(root_, key))
+	iterator find_r(const key_t& key) {
+		if (node_t*& node = z_find_r(root_, key))
 			return iterator(node);
 		return end();
 	}
@@ -131,6 +148,10 @@ public:
 		z_heapify_r(root_);
 	}
 
+	iterator begin() const {
+		return 
+	}
+
 	iterator end() const {
 		return iterator(shared_null);
 	}
@@ -141,17 +162,17 @@ public:
 	}
 
 protected:
-	link_t    root_ ;
+	node_t*   root_ ;
 	size_t    count_;
 	TTreePred tree_pred_;
 	THeapPred heap_pred_;
 
 private:
-	link_t z_erase_r(link_t r, const key_value_t& td) {
+	node_t* z_erase_r(node_t* r, const key_t& td) {
 		if (0 == r)
 			return 0;
 		if (td == r->d_.first) {
-			link_t ret = 0;
+			node_t* ret = nullptr;
 			if (0 == r->left_)
 				ret = r->right_;
 			else if (0 == r->right_)
@@ -173,7 +194,7 @@ private:
 		return r;
 	}
 
-	link_t& z_find_r(link_t& r, const TTree& td) const {
+	node_t*& z_find_r(node_t* r, const TTree& td) const {
 		if (0 == r)
 			return shared_null;
 		if (r->d_.first == td)
@@ -181,21 +202,21 @@ private:
 		return z_find_r(tree_pred_(td, r->d_.first) ? r->left_ : r->right_ , td);
 	}
 
-	link_t z_disconnect_smallest(link_t& root) {
+	node_t* z_disconnect_smallest(node_t*& root) {
 		if (root->left_ == 0) {
-			link_t tmp = root;
+			node_t* tmp = root;
 			root = tmp->right_;
 			return tmp;
 		}
-		link_t r = root;
+		node_t* r = root;
 		while (r->left_->left_)
 			r = r->left_;
-		link_t ret = r->left_;
+		node_t* ret = r->left_;
 		r->left_ = ret->right_;
 		return ret;
 	}
 
-	void z_heapify_r(link_t& r) {
+	void z_heapify_r(node_t*& r) {
 		if (0 == r) return;
 		if ( r->right_ && !heap_pred_(r->d_.second, r->right_->d_.second) ) {
 			z_rotate_left(r);
@@ -207,7 +228,7 @@ private:
 		}
 	}
 
-	link_t z_insert_r(link_t root, const key_value_t& td, const heap_value_t& hd) {
+	node_t* z_insert_r(node_t* root, const key_t& td, const heap_t& hd) {
 		if (0 == root) {
 			++count_;
 			return new node_t(td, hd);
@@ -225,7 +246,7 @@ private:
 		return root;
 	}
 
-	void z_clear_r(link_t r) {
+	void z_clear_r(node_t* r) {
 		if (0 == r) return;
 		z_clear_r(r->right_);
 		z_clear_r(r->left_);
@@ -235,10 +256,10 @@ private:
 	//a      b
 	// \ => /
 	//  b  a
-	void z_rotate_left(link_t& a) {
-		link_t b  = a->right_;
-		link_t bl = b->left_;
-		link_t ta = a;
+	void z_rotate_left(node_t*& a) {
+		node_t* b  = a->right_;
+		node_t* bl = b->left_;
+		node_t* ta = a;
 		a = b;
 		b->left_   = ta;
 		ta->right_ = bl;
@@ -247,11 +268,10 @@ private:
 	//  a  b
 	// / => \
 	//b      a
-	void z_rotate_right(link_t& a) {
-		//a->left, b->right
-		link_t b  = a->left_ ;
-		link_t br = b->right_;
-		link_t ta = a;
+	void z_rotate_right(node_t*& a) {
+		node_t* b  = a->left_ ;
+		node_t* br = b->right_;
+		node_t* ta = a;
 		a = b;
 		b->right_ = ta;
 		ta->left_ = br;
@@ -268,6 +288,6 @@ template
 	, typename TTreePred
 	, typename THeapPred
 >
-typename treap<TTree, THeap, TTreePred, THeapPred>::link_t treap<TTree, THeap, TTreePred, THeapPred>::shared_null = 0;
+typename treap<TTree, THeap, TTreePred, THeapPred>::node_t* treap<TTree, THeap, TTreePred, THeapPred>::shared_null = nullptr;
 }      // ff
 #endif // __FF_TREAP__

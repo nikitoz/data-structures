@@ -41,14 +41,6 @@ bool testGraph() {
 // 	graphy.addConnection(6, 5, 1);
 // 	graphy.addConnection(5, 3, 1);
 
-	typedef digraph<int> Graph;
-
-	size_t s = ff::shortest_path_astar< Graph, std::less<Graph::edge_t> > ( graphy, 0, 4 );
-	std::cout << s << std::endl;
-
-	bfs<Graph, ff::fn_true> ( graphy, 0 );
-	dfs<Graph, ff::fn_true> ( graphy, 0 );
-
 	return true;
 }
 
@@ -83,15 +75,6 @@ void courseraTest(const char * path) {
 // 	}
 }
 
-void descartesLoadTest(const char* path)
-{
-	ff::graph graph;
-	std::ifstream input_stream(path);
-	ff::descartes_graph_builder<ff::graph, double> graph_builder;
-	graph_builder(graph, input_stream);
-	graph.ncount();
-}
-
 int main(int argc, char** argv) {
 	/*if (!testHeap())
 		std::cout << "!!! Heap test failed !!!" << std::endl;*/
@@ -101,7 +84,12 @@ int main(int argc, char** argv) {
 // 	for (int i = 0 ; i < argc; ++i) {
 // 		printf(argv[i]);
 // 	}
-	descartesLoadTest("d:/data/desc.txt");
+	//descartesLoadTest("d:/data/desc.txt");
+	ff::graph<int, size_t> g;
+	for (int i = 0; i != 200; ++i)
+		g.add(i);
+	ff::from_text_file_adjecency_list(g, "D:/Projects/other/kargerMinCut.txt");
+	std::cout << g.ncount();
 	//courseraTest("tmp.data");
 	//std::cin.get();
 	return 0;

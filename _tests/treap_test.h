@@ -6,9 +6,9 @@
 class treap_test {
 	typedef ff::treap<int, int>   treap_t;
 	typedef treap_t::node_t       node_t;
-	typedef treap_t::key_value_t  key_value_t;
-	typedef treap_t::heap_value_t heap_value_t;
-	typedef treap_t::link_t       link_t;
+	typedef treap_t::key_t  key_value_t;
+	typedef treap_t::heap_t heap_value_t;
+	typedef treap_t::node_t*       link_t;
 public:
 	treap_t tr_;
 

@@ -7,6 +7,10 @@
 #include <functional>
 #include <stack>
 #include <set>
+#include <iostream>
+#include <fstream>
+#include <sstream>
+#include <iosfwd>
 
 namespace ff { namespace {
 
@@ -16,22 +20,22 @@ static const size_t INFINITY = (size_t)-1;
     Graph directed edge
 */
 
-template <typename T>
+template <typename T, typename TCost>
 struct diedge
 {
 	diedge() 
 		: from_(0), to_(0), cost_(0)
 	{ }
 
-	diedge(T* from, T* to, size_t cost) 
+	diedge(T* from, T* to, TCost cost) 
 		: to_(to), from_(from), cost_(cost)
 	{ }
 
 	size_t to() const
-	{ return to_->_index; }
+	{ return to_->index_; }
 
 	size_t from() const
-	{ return from_->_index; }
+	{ return from_->index_; }
 
 	bool operator<(const diedge& de) const
 	{ return cost_ < de.cost_; }
@@ -41,18 +45,18 @@ struct diedge
 
 	T*     from_;
 	T*     to_;
-	size_t cost_;
+	TCost cost_;
 }; // diedge
 
 /*
     Graph node
 */
 
-template <typename T>
+template <typename T, typename TCost>
 struct gnode
 {
-	typedef gnode<T>                  node_t;
-	typedef diedge<node_t>            edge_t;
+	typedef gnode<T, TCost>           node_t;
+	typedef diedge<node_t, TCost>     edge_t;
 	typedef typename size_t			  index_t;
 	typedef std::map<index_t, edge_t> edges_t;
 
@@ -151,7 +155,7 @@ template
     , typename TP // Search finishing condition
     , typename TC // Internal usage container
 >
-typename TG::node_t xfs ( const TG& g, typename TG::index_t from ) const
+typename TG::node_t xfs ( const TG& g, typename TG::index_t from )
 {
 	return graph_search <TG, TP, TC> (g, from);
 }
@@ -165,7 +169,7 @@ template
       typename TG // Graph class
     , typename TP // Search finishing condition
 >
-typename TG::node_t dfs ( const TG& g, typename TG::index_t from ) const
+typename TG::node_t dfs ( const TG& g, typename TG::index_t from )
 { 
 	return xfs <TG, TP, dfs_container<TG> > (g, from); 
 }
@@ -179,7 +183,7 @@ template
       typename TG // Graph class
     , typename TP // Search finishing condition
 >
-typename TG::node_t bfs ( const TG& g, typename TG::index_t from ) const
+typename TG::node_t bfs ( const TG& g, typename TG::index_t from )
 { 
 	return xfs <TG, TP, bfs_container<TG> > (g, from); 
 }
@@ -193,7 +197,7 @@ template
       typename TG    // Graph class
     , typename TEP   // Edge predicate
 >
-size_t shortest_path_astar( const TG& g, size_t src, size_t dst ) const
+size_t shortest_path_astar( const TG& g, size_t src, size_t dst )
 {
 	if (src == dst) return 0;
 	std::vector<size_t> cost(g.ncount(), INFINITY);
@@ -459,7 +463,7 @@ private:
 	{
 		size_t sum = 0;
 		for ( TG::nodes_t::const_iterator it  = g.nodes().begin(); it != g.nodes().end(); ++it)
-			sum += it->_edges.size();
+			sum += it->edges_.size();
 		return sum/g.ncount();
 	}
 
@@ -498,42 +502,28 @@ private:
 	mutable std::set<int> _possible_colours;
 }; // coloring_b_and_b
 
-/*
-	TSP solver. Hamiltonian cycle
-*/
-
 template
 <
 	typename TG
 >
-struct tsp
+void from_text_file_adjecency_list(TG& graph, const char* filename)
 {
-	typedef typename TG::index_t index_t;
-
-	std::vector<index_t> operator()(const TG& g) const
-	{
-		
+	std::ifstream in_file(filename);
+	if (!in_file.is_open())
+		return;
+	while (in_file.good()) {
+		std::string ln;
+		std::getline(in_file, ln);
+		std::stringstream ln_stream(ln);
+		int src = 0;
+		ln_stream >> src;
+		int dst = 0;
+		while (ln_stream.good()) {
+			ln_stream >> dst;
+			graph.connect(src - 1, dst - 1, 0);
+		}
 	}
-};
-
-/*
-	Undirected graph class
-*/
-
-template
-<
-	  typename TNode = int // Some associated with node data
-	, typename TLength = size_t // edge length type
->
-struct graph : public digraph<T, TLength>
-{
-	void connect(size_t from, size_t to, T cost)
-	{
-		digraph<TNode, TLength>::connect(from, to, cost);
-		digraph<TNode, TLength>::connect(to, from, cost);
-	}
-};
-
+}
 
 /*
 	Digraph class
@@ -541,13 +531,14 @@ struct graph : public digraph<T, TLength>
 
 template
 <
-	  typename TNode   = int // Some associated with node data
+	  typename TNode   = int    // Some associated with node data
 	, typename TLength = size_t // edge length type
 >
 class digraph
 {
 public:
-	typedef typename gnode<T>		 node_t;
+	typedef TLength cost_t;
+	typedef typename gnode<TNode, TLength>	 node_t;
 	typedef std::vector<node_t>		 nodes_t;
 	typedef typename node_t::edge_t	 edge_t;
 	typedef typename node_t::edges_t edges_t;
@@ -558,23 +549,23 @@ public:
 	digraph(size_t count)
 	{ nodes_.reserve(count); }
 
-	size_t add(const T& data)
+	size_t add(const TNode& data)
 	{
 		nodes_.push_back(node_t(data, nodes_.size()));
 		return nodes_.size() - 1;
 	}
 
-	void connect(size_t from, size_t to, int cost)
+	void connect(size_t from, size_t to, TLength cost)
 	{
 		if (from < nodes_.size() && to < nodes_.size() && to != from)
 			nodes_[from].edges_[to] = edge_t(&nodes_[from], &nodes_[to], cost);
 	}
 
-	size_t cost(size_t from, size_t to) const
-	{ return ff::shortest_path_astar< digraph<T>, std::less<edge_t> >(*this, from, to); }
+	/*size_t cost(size_t from, size_t to) const
+	{ return ff::shortest_path_astar< digraph<T>, std::less<edge_t> >(*this, from, to); }*/
 
 	coloring_result colours() const
-	{ return coloring_b_and_b< digraph<T> >()( *this );	}
+	{ return coloring_b_and_b< digraph<TNode, TLength> >()( *this );	}
 
 	size_t ncount() const
 	{ return nodes_.size();	}
@@ -594,7 +585,15 @@ public:
 	const edges_t& edges(size_t from) const
 	{ return nodes_[from].edges_; }
 
-private:
+	bool has_edge(size_t from, size_t to)
+	{ return nodes_[from].edges_.end() != nodes_[from].edges_.find(to); }
+
+	cost_t cost(size_t from, size_t to)
+	{
+		return nodes_[from].edges_[to].cost_;
+	}
+
+protected:
 	nodes_t nodes_;
 
 public:
@@ -614,5 +613,53 @@ public:
 	}
 #endif // #ifdef _DEBUG
 };// digraph
+
+/*
+	Undirected graph class
+*/
+
+template
+<
+	  typename TNode   = int    // Some associated with node data
+	, typename TLength = size_t // edge length type
+>
+class graph : public digraph<TNode, TLength>
+{
+typedef digraph<TNode, TLength> parent_t;
+public:
+	void connect(size_t from, size_t to, TLength cost = TLength())
+	{
+		parent_t::connect(from, to, cost);
+		parent_t::connect(to, from, cost);
+	}
+};
+
+/*
+	Undirected multigraph class
+*/
+
+template
+<
+	  typename TNode   = int    // Some associated with node data
+	, typename TLength = size_t // edge length type
+>
+class multigraph : public graph<TNode, TLength>
+{
+
+public:
+	void connect(size_t from, size_t to, TLength cost = TLength())
+	{
+		parent_t::connect(from, to, parent_t::cost(from, to) + 1);
+		parent_t::connect(to, from, parent_t::cost(to, from) + 1);
+	}
+
+	void contract(size_t from, size_t to)
+	{
+		for (node_t& node : nodes_) {
+			
+		}
+	}
+};
+
 } // ff
 #endif // ___FF_GRAPH__
